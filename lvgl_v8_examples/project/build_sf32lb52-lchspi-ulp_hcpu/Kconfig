@@ -1,0 +1,4 @@
+source "$SIFLI_SDK/Kconfig.v2"
+source "$SIFLI_SDK/customer/boards/Kconfig.v2"
+source "D:/iotproject/LCHSP/OpenSiFli/sifli-sdk/customer/boards/sf32lb52-lchspi-ulp/hcpu/Kconfig.board"
+source "D:/iotproject/lcHspEc800m/lcHsp/example/multimedia/lvgl/lvgl_v8_examples/project/Kconfig.proj"

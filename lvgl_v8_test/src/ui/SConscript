@@ -1,0 +1,9 @@
+from building import *
+
+cwd = GetCurrentDir()
+src = Glob('*.c') + Glob('screens/*.c')
+CPPPATH = [cwd]
+
+group = DefineGroup('ui', src, depend = [''], CPPPATH = CPPPATH)
+
+Return('group')
