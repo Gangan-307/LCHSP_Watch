@@ -187,30 +187,30 @@ rt_err_t set_rtc_time_by_timestamp(time_t stamp)
   * @brief  读取当前硬件 RTC 并直接填充到 struct tm 结构体中
   * @param  tm_new 目标结构体指针
   */
-void get_rtc_tm(struct tm *tm_new)
-{
-    RTC_TimeTypeDef RTC_TimeStruct = {0};
-    RTC_DateTypeDef RTC_DateStruct = {0};
+// void get_rtc_tm(struct tm *tm_new)
+// {
+//     RTC_TimeTypeDef RTC_TimeStruct = {0};
+//     RTC_DateTypeDef RTC_DateStruct = {0};
 
-    /* 获取时间 */
-    HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
-    /* 获取日期 */
-    while (HAL_RTC_GetDate(&RTC_Handler, &RTC_DateStruct, RTC_FORMAT_BIN) == HAL_ERROR)
-    {
-        /* 错误重试 */
-        HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
-    };
+//     /* 获取时间 */
+//     HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
+//     /* 获取日期 */
+//     while (HAL_RTC_GetDate(&RTC_Handler, &RTC_DateStruct, RTC_FORMAT_BIN) == HAL_ERROR)
+//     {
+//         /* 错误重试 */
+//         HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
+//     };
 
-    /* 填充 struct tm 结构体 */
-    tm_new->tm_sec  = RTC_TimeStruct.Seconds + ((RTC_TimeStruct.SubSeconds > 128) ? 1 : 0);
-    tm_new->tm_min  = RTC_TimeStruct.Minutes;
-    tm_new->tm_hour = RTC_TimeStruct.Hours;
-    tm_new->tm_mday = RTC_DateStruct.Date;
-    tm_new->tm_mon  = RTC_DateStruct.Month - 1; // 转换为标准 tm_mon (0 ~ 11)
-    tm_new->tm_wday = RTC_DateStruct.WeekDay == RTC_WEEKDAY_SUNDAY ? 0 : RTC_DateStruct.WeekDay; // 标准 tm_wday
+//     /* 填充 struct tm 结构体 */
+//     tm_new->tm_sec  = RTC_TimeStruct.Seconds + ((RTC_TimeStruct.SubSeconds > 128) ? 1 : 0);
+//     tm_new->tm_min  = RTC_TimeStruct.Minutes;
+//     tm_new->tm_hour = RTC_TimeStruct.Hours;
+//     tm_new->tm_mday = RTC_DateStruct.Date;
+//     tm_new->tm_mon  = RTC_DateStruct.Month - 1; // 转换为标准 tm_mon (0 ~ 11)
+//     tm_new->tm_wday = RTC_DateStruct.WeekDay == RTC_WEEKDAY_SUNDAY ? 0 : RTC_DateStruct.WeekDay; // 标准 tm_wday
     
-    if (RTC_DateStruct.Year & RTC_CENTURY_BIT)
-        tm_new->tm_year = RTC_DateStruct.Year & (~RTC_CENTURY_BIT);
-    else
-        tm_new->tm_year = RTC_DateStruct.Year + 100;
-}
+//     if (RTC_DateStruct.Year & RTC_CENTURY_BIT)
+//         tm_new->tm_year = RTC_DateStruct.Year & (~RTC_CENTURY_BIT);
+//     else
+//         tm_new->tm_year = RTC_DateStruct.Year + 100;
+// }
