@@ -3,6 +3,7 @@
 #include "drv_io.h"
 #include "stdio.h"
 #include "string.h"
+
 #include "lvgl.h"
 #include "littlevgl2rtt.h"
 #include "lv_ex_data.h"
@@ -22,6 +23,10 @@ extern void rgb_led_set_color(uint32_t color); // 声明来自 rgb_led.c 的设�
 extern void lvgl_time_display_init(lv_obj_t * parent);
 /* -------------------------------------------------------- */
 
+void HAL_MspInit(void)
+{
+    BSP_IO_Init();
+}
 
 void on_led_toggle(lv_event_t * e)
 {
@@ -98,36 +103,36 @@ static void rtc_display_thread_entry(void *parameter)
   */
 int main(void)
 {
-    rt_err_t ret = RT_EOK;
-    rt_uint32_t ms;
+    // rt_err_t ret = RT_EOK;
+    // rt_uint32_t ms;
 
     // 1. 初始化并配置硬件 RTC
     rtc_config();
     set_date_time();
 
     // 2. 初始化并开启 RGB LED 驱动
-     rgb_led_config();
+    //  rgb_led_config();
 
     /* 
      * 3. 【关键调整：图形与显示优先】
      * 在系统时钟最纯净、内存最完整的时候，优先初始化并拉起 LCD 屏幕和图形核心！
      */
-    ret = littlevgl2rtt_init("lcd");
-    if (ret != RT_EOK)
-    {
-        // 加上错误打印，防止静默退出
-        rt_kprintf("CRITICAL ERROR: littlevgl2rtt_init failed with %d!\n", ret);
-        return ret;
-    }
-    lv_ex_data_pool_init();
+    // ret = littlevgl2rtt_init("lcd");
+    // if (ret != RT_EOK)
+    // {
+    //     // 加上错误打印，防止静默退出
+    //     rt_kprintf("CRITICAL ERROR: littlevgl2rtt_init failed with %d!\n", ret);
+    //     return ret;
+    // }
+    // lv_ex_data_pool_init();
     
-    rt_kprintf("SquareLine Studio LVGL Image Example\n");
+    // rt_kprintf("SquareLine Studio LVGL Image Example\n");
     
-    // 4. 初始化 SquareLine Studio 导出的 UI 页面
-    ui_init();
+    // // 4. 初始化 SquareLine Studio 导出的 UI 页面
+    // ui_init();
 
-    // 5. 启动 LVGL 内部的 1 秒软件定时器（自动在 UI 上刷新北京时间）
-    lvgl_time_display_init(lv_scr_act());
+    // // 5. 启动 LVGL 内部的 1 秒软件定时器（自动在 UI 上刷新北京时间）
+    // lvgl_time_display_init(lv_scr_act());
 
     /* 
      * 6. 【关键调整：网络最后启动】
@@ -136,11 +141,23 @@ int main(void)
      */
     bt_pan_app_init();
 
+    // 3. 创建并启动独立的时间显示线程
+    rt_thread_t rtc_tid = rt_thread_create("rtc_display",
+                                           rtc_display_thread_entry,
+                                           RT_NULL,
+                                           1024,  // 任务栈大小
+                                           20,    // 优先级
+                                           10);   // 时间片
+    if (rtc_tid != RT_NULL)
+    {
+        rt_thread_startup(rtc_tid);
+    }
+
     /* Infinite loop */
     while (1)
     {
-        ms = lv_task_handler();
-        rt_thread_mdelay(ms); // 使用 RTT 环保挂起，避免 CPU 忙等死锁
+        // ms = lv_task_handler();
+        rt_thread_mdelay(5000); // 使用 RTT 环保挂起，避免 CPU 忙等死锁
     }
     return 0;
 }
