@@ -3,12 +3,12 @@
 #include "drv_io.h"
 #include "stdio.h"
 #include "string.h"
-
 #include "lvgl.h"
 #include "littlevgl2rtt.h"
 #include "lv_ex_data.h"
 #include "ui.h"
 #include "drivers/rt_drv_pwm.h"
+#include "rtc.h"  
 
 
 // /* ------------------ 外部驱动与服务模块声明 ------------------ */
@@ -16,12 +16,13 @@ extern void rtc_config(void);
 extern void set_date_time(void);
 extern void get_date_time(void);
 extern void bt_pan_app_init(void);
-extern void bt_test_app_init(void);  // ← 新增：蓝牙测试模式初始化
+extern void update_ui_time(void);
+extern void init_time_update_timer(void);
 
 extern void rgb_led_config(void);          // 声明来自 rgb_led.c 的初始化函数
 extern void rgb_led_set_color(uint32_t color); // 声明来自 rgb_led.c 的设置颜色函数
 
-extern void lvgl_time_display_init(lv_obj_t * parent);
+// extern void lvgl_time_display_init(lv_obj_t * parent);
 /* -------------------------------------------------------- */
 
 void HAL_MspInit(void)
@@ -102,69 +103,57 @@ static void rtc_display_thread_entry(void *parameter)
   * @param  None
   * @retval 0 if success, otherwise failure number
   */
-// int main(void)
-// {
-//     // rt_err_t ret = RT_EOK;
-//     // rt_uint32_t ms;
-
-//     // 1. 初始化并配置硬件 RTC
-//     rtc_config();
-//     set_date_time();
-
-    
-
-//     // rt_kprintf("--- main: calling bt_pan_app_init ---\n");
-//     // bt_pan_app_init();
-//     // rt_kprintf("--- main: bt_pan_app_init done ---\n");
-
-//     // 3. 创建并启动独立的时间显示线程
-//     rt_thread_t rtc_tid = rt_thread_create("rtc_display",
-//                                            rtc_display_thread_entry,
-//                                            RT_NULL,
-//                                            1024,  // 任务栈大小
-//                                            20,    // 优先级
-//                                            10);   // 时间片
-//     if (rtc_tid != RT_NULL)
-//     {
-//         rt_thread_startup(rtc_tid);
-//     }
-
-//     /* Infinite loop */
-//     while (1)
-//     {
-//         //  ms = lv_task_handler();
-//         rt_thread_mdelay(10); // 使用 RTT 环保挂起，避免 CPU 忙等死锁
-//     }
-//     return 0;
-// }
-
 int main(void)
 {
+    rt_err_t ret = RT_EOK;
+    rt_uint32_t ms;
+
     // 1. 初始化并配置硬件 RTC
     rtc_config();
     set_date_time();
 
-    // 2. 初始化蓝牙测试（替代原来的 bt_pan_app_init）
-    rt_kprintf("--- main: calling bt_test_app_init ---\n");
-    bt_test_app_init();
-    rt_kprintf("--- main: bt_test_app_init done ---\n");
+    // 2. 初始化并开启 RGB LED 驱动
+     rgb_led_config();
 
-    // 3. 创建并启动独立的时间显示线程
-    rt_thread_t rtc_tid = rt_thread_create("rtc_display",
-                                           rtc_display_thread_entry,
-                                           RT_NULL,
-                                           1024,  // 任务栈大小
-                                           20,    // 优先级
-                                           10);   // 时间片
-    if (rtc_tid != RT_NULL)
+    /* 
+     * 3. 【关键调整：图形与显示优先】
+     * 在系统时钟最纯净、内存最完整的时候，优先初始化并拉起 LCD 屏幕和图形核心！
+     */
+    ret = littlevgl2rtt_init("lcd");
+    if (ret != RT_EOK)
     {
-        rt_thread_startup(rtc_tid);
+        // 加上错误打印，防止静默退出
+        rt_kprintf("CRITICAL ERROR: littlevgl2rtt_init failed with %d!\n", ret);
+        return ret;
     }
+    lv_ex_data_pool_init();
+    
+    rt_kprintf("SquareLine Studio LVGL Image Example\n");
+    
+    // 4. 初始化 SquareLine Studio 导出的 UI 页面
+    ui_init();
+
+     // 5. 初始化时间更新定时器（会自动更新时间）
+    init_time_update_timer();
+    
+    // 6. 显示当前时间
+    update_ui_time();  // 立即更新一次
+
+    // 5. 启动 LVGL 内部的 1 秒软件定时器（自动在 UI 上刷新北京时间）
+    // lvgl_time_display_init(lv_scr_act());
+
+    /* 
+     * 6. 【关键调整：网络最后启动】
+     * 此时 LCD 硬件已经供电并完成初始化，显存也已经成功锁定了内存空间。
+     * 这时再拉起后台蓝牙网络维护线程，协议栈怎么修改时钟都不会再影响到已经就绪的屏幕。
+     */
+    // bt_pan_app_init();
 
     /* Infinite loop */
     while (1)
     {
-        rt_thread_mdelay(10); // 使用 RTT 环保挂起，避免 CPU 忙等死锁
+        ms = lv_timer_handler();
+        rt_thread_mdelay(ms); // 使用 RTT 环保挂起，避免 CPU 忙等死锁
     }
     return 0;
 }
