@@ -5,17 +5,117 @@
 #include "string.h"
 #include "time.h"
 #include "rtthread.h"
+#include "lvgl.h"
+#include "rtc.h"
 
-/* 
- * 关键修改：将本地定义修改为 extern 声明，
- * 直接复用官方驱动 drv_rtc.c 中已经定义好的全局句柄
- */
+extern lv_obj_t *ui_Label6;
+extern lv_obj_t *ui_Label7;
 extern RTC_HandleTypeDef RTC_Handler;
 
-/* 
- * 关键修改：删除了 RTC_IRQHandler()，因为官方驱动 drv_rtc.c 已经接管了该中断。
- * 关键修改：删除了 drv_rtc_callback()，因为官方驱动 drv_rtc.c 已经实现。
+// LVGL定时器句柄
+static lv_timer_t *lv_update_timer = NULL;
+
+// 互斥量句柄（用于保护UI操作）
+static struct rt_mutex ui_mutex;
+
+/**
+  * @brief  更新LVGL屏幕上的时间和日期显示
+  * @param  none
+  * @retval none
+  */
+void update_ui_time(void)
+{
+    RTC_TimeTypeDef RTC_TimeStruct = {0};
+    RTC_DateTypeDef RTC_DateStruct = {0};
+    char time_str[16] = {0};
+    char date_str[32] = {0};
+    const char *week_days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", 
+                                "Thursday", "Friday", "Saturday"};
+    const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    
+    // 1. 获取RTC时间
+    HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
+    while (HAL_RTC_GetDate(&RTC_Handler, &RTC_DateStruct, RTC_FORMAT_BIN) == HAL_ERROR)
+    {
+        HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
+    }
+    
+    // 2. 格式化时间字符串 "HH:MM:SS"
+    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", 
+             RTC_TimeStruct.Hours, RTC_TimeStruct.Minutes, RTC_TimeStruct.Seconds);
+    
+    // 3. 格式化日期字符串 "Friday, Oct 25" (不显示年份)
+    if (RTC_DateStruct.Month >= 1 && RTC_DateStruct.Month <= 12) {
+        snprintf(date_str, sizeof(date_str), "%s, %s %d",
+                 week_days[RTC_DateStruct.WeekDay % 7],
+                 months[RTC_DateStruct.Month - 1],
+                 RTC_DateStruct.Date);
+    }
+    
+    // 4. 使用互斥量保护UI操作
+    rt_mutex_take(&ui_mutex, RT_WAITING_FOREVER);
+    
+    if (ui_Label6 != NULL) {
+        lv_label_set_text(ui_Label6, time_str);
+    }
+    if (ui_Label7 != NULL) {
+        lv_label_set_text(ui_Label7, date_str);
+    }
+    
+    rt_mutex_release(&ui_mutex);
+}
+
+/**
+ * @brief LVGL定时器回调函数（在LVGL上下文中执行）
  */
+static void lv_update_timer_callback(lv_timer_t *timer)
+{
+    // LVGL定时器回调在LVGL上下文中执行，可以直接操作UI
+    // 但为了安全，还是使用互斥量保护
+    update_ui_time();
+}
+
+/**
+ * @brief 初始化互斥量和时间更新定时器
+ */
+void init_time_update_timer(void)
+{
+    // 1. 初始化互斥量
+    rt_mutex_init(&ui_mutex, "ui_mutex", RT_IPC_FLAG_PRIO);
+    rt_kprintf("UI mutex initialized!\n");
+    
+    // 2. 创建LVGL定时器
+    if (lv_update_timer == NULL) {
+        lv_update_timer = lv_timer_create(lv_update_timer_callback, 1000, NULL);
+        if (lv_update_timer != NULL) {
+            rt_kprintf("LVGL time update timer created successfully!\n");
+        } else {
+            rt_kprintf("Failed to create LVGL time update timer!\n");
+        }
+    }
+}
+
+/**
+ * @brief 停止时间更新
+ */
+void stop_time_update(void)
+{
+    if (lv_update_timer != NULL) {
+        lv_timer_del(lv_update_timer);
+        lv_update_timer = NULL;
+        rt_kprintf("LVGL time update timer stopped!\n");
+    }
+}
+
+/**
+ * @brief 恢复时间更新
+ */
+void resume_time_update(void)
+{
+    init_time_update_timer();
+}
+
 
 /**
   * @brief  Initialization and configuration RTC drvier instance.
@@ -181,36 +281,4 @@ rt_err_t set_rtc_time_by_timestamp(time_t stamp)
     rt_kprintf("RTC Sync Time: %s", asctime(p_tm));
 
     return RT_EOK;
-}
-
-/**
-  * @brief  读取当前硬件 RTC 并直接填充到 struct tm 结构体中
-  * @param  tm_new 目标结构体指针
-  */
-void get_rtc_tm(struct tm *tm_new)
-{
-    RTC_TimeTypeDef RTC_TimeStruct = {0};
-    RTC_DateTypeDef RTC_DateStruct = {0};
-
-    /* 获取时间 */
-    HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
-    /* 获取日期 */
-    while (HAL_RTC_GetDate(&RTC_Handler, &RTC_DateStruct, RTC_FORMAT_BIN) == HAL_ERROR)
-    {
-        /* 错误重试 */
-        HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
-    };
-
-    /* 填充 struct tm 结构体 */
-    tm_new->tm_sec  = RTC_TimeStruct.Seconds + ((RTC_TimeStruct.SubSeconds > 128) ? 1 : 0);
-    tm_new->tm_min  = RTC_TimeStruct.Minutes;
-    tm_new->tm_hour = RTC_TimeStruct.Hours;
-    tm_new->tm_mday = RTC_DateStruct.Date;
-    tm_new->tm_mon  = RTC_DateStruct.Month - 1; // 转换为标准 tm_mon (0 ~ 11)
-    tm_new->tm_wday = RTC_DateStruct.WeekDay == RTC_WEEKDAY_SUNDAY ? 0 : RTC_DateStruct.WeekDay; // 标准 tm_wday
-    
-    if (RTC_DateStruct.Year & RTC_CENTURY_BIT)
-        tm_new->tm_year = RTC_DateStruct.Year & (~RTC_CENTURY_BIT);
-    else
-        tm_new->tm_year = RTC_DateStruct.Year + 100;
 }
