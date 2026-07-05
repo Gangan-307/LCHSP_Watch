@@ -147,7 +147,7 @@ int main(void)
      * 此时 LCD 硬件已经供电并完成初始化，显存也已经成功锁定了内存空间。
      * 这时再拉起后台蓝牙网络维护线程，协议栈怎么修改时钟都不会再影响到已经就绪的屏幕。
      */
-    // bt_pan_app_init();
+    bt_pan_app_init();
 
     /* Infinite loop */
     while (1)
