@@ -1,9 +1,0 @@
-#APP specific configuration.
-config CUSTOM_MEM_MAP
-    bool 
-	select custom_mem_map
-	default y if !SOC_SIMULATOR
-    
-config LV_BUILD_EXAMPLES
-    bool 
-    default y
