@@ -20,6 +20,9 @@
 
 #include "ulog.h"
 
+/* 声明您之前的 NTP 同步函数 */
+extern rt_err_t sync_network_time(void);
+
 #define BT_APP_READY 1
 #define BT_APP_CONNECT_PAN  1
 #define PAN_TIMER_MS        3000
@@ -184,6 +187,10 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
                 rt_timer_stop(g_bt_app_env.pan_connect_timer);
             }
             g_bt_app_env.pan_connected = 1;
+
+                        // 【集成点】在此处异步触发网络时间同步
+            extern void trigger_ntp_sync(void);
+            trigger_ntp_sync();
         }
         break;
         case BT_NOTIFY_PAN_PROFILE_DISCONNECTED:
@@ -320,4 +327,50 @@ static void pan_cmd(int argc, char **argv)
         pan_reconnect();
     }
 }
+static void ntp_sync_thread_entry(void *parameter)
+{
+    rt_err_t result = -RT_ERROR;
+    uint32_t retry_count = 0;
+
+    // 连接成功后，先等待 3 秒给协议栈一点准备时间
+    rt_thread_mdelay(3000); 
+
+    while (1)
+    {
+        // 健壮性检查：如果重试期间蓝牙 PAN 断开了，则无需继续重试，直接退出
+        if (g_bt_app_env.pan_connected == 0)
+        {
+            rt_kprintf("[NTP] PAN disconnected. Stop retrying.\n");
+            break;
+        }
+
+        retry_count++;
+        rt_kprintf("[NTP] Attempting sync, try #%d...\n", retry_count);
+        
+        result = sync_network_time();
+        if (result == RT_EOK)
+        {
+            rt_kprintf("[NTP] Successfully synchronized time after %d attempts!\n", retry_count);
+            break; // 获取成功，退出循环，结束线程
+        }
+
+        // 获取失败，等待 5 秒后重试
+        rt_thread_mdelay(5000); 
+    }
+}
+
+void trigger_ntp_sync(void)
+{
+    rt_thread_t tid = rt_thread_create("ntp_sync",
+                                       ntp_sync_thread_entry,
+                                       RT_NULL,
+                                       2048,
+                                       20,   // 较低优先级
+                                       10);
+    if (tid != RT_NULL)
+    {
+        rt_thread_startup(tid);
+    }
+}
 MSH_CMD_EXPORT(pan_cmd, Connect PAN to last paired device);
+MSH_CMD_EXPORT(trigger_ntp_sync, Trigger NTP time synchronization);
