@@ -8,6 +8,7 @@
 #include "lv_ex_data.h"
 #include "ui.h"
 #include "drivers/rt_drv_pwm.h"
+#include "vibrator.h"
 #include "rtc.h"  
 
 
@@ -41,7 +42,7 @@ void on_led_toggle(lv_event_t * e)
         // 执行开灯：设置成白色
         rgb_led_set_color(0xffffff); 
         lv_label_set_text(ui_Label3, "LIGHT ON");
-         
+        vibrator_vibrate(100, 500); // 震动 500 毫秒
         is_on = RT_TRUE;
     } 
     else 
@@ -49,7 +50,7 @@ void on_led_toggle(lv_event_t * e)
         // 执行关灯：设置成黑色
         rgb_led_set_color(0x000000); 
         lv_label_set_text(ui_Label3, "LIGHT OFF");
-       
+        vibrator_vibrate(100, 500); // 震动 500 毫秒
         is_on = RT_FALSE;
     }
 }
