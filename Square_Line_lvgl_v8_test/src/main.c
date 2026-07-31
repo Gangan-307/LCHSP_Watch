@@ -10,18 +10,11 @@
 #include "drivers/rt_drv_pwm.h"
 #include "vibrator.h"
 #include "rtc.h"  
+#include "rgb.h"
 
 
 // /* ------------------ 外部驱动与服务模块声明 ------------------ */
-extern void rtc_config(void);
-extern void set_date_time(void);
-extern void get_date_time(void);
 extern void bt_pan_app_init(void);
-extern void update_ui_time(void);
-extern void init_time_update_timer(void);
-
-extern void rgb_led_config(void);          // 声明来自 rgb_led.c 的初始化函数
-extern void rgb_led_set_color(uint32_t color); // 声明来自 rgb_led.c 的设置颜色函数
 
 // extern void lvgl_time_display_init(lv_obj_t * parent);
 /* -------------------------------------------------------- */
@@ -31,29 +24,7 @@ void HAL_MspInit(void)
     BSP_IO_Init();
 }
 
-void on_led_toggle(lv_event_t * e)
-{
-    static rt_bool_t is_on = RT_FALSE; // 记录开关状态
-    lv_obj_t * btn = lv_event_get_target(e);
-    lv_obj_t * label = lv_obj_get_child(btn, 0);
 
-    if (is_on == RT_FALSE) 
-    {
-        // 执行开灯：设置成白色
-        rgb_led_set_color(0xffffff); 
-        lv_label_set_text(ui_Label3, "LIGHT ON");
-        vibrator_vibrate(100, 500); // 震动 500 毫秒
-        is_on = RT_TRUE;
-    } 
-    else 
-    {
-        // 执行关灯：设置成黑色
-        rgb_led_set_color(0x000000); 
-        lv_label_set_text(ui_Label3, "LIGHT OFF");
-        vibrator_vibrate(100, 500); // 震动 500 毫秒
-        is_on = RT_FALSE;
-    }
-}
 
 #if defined(BSP_USING_SPI_NAND) && defined(RT_USING_DFS)
 #include "dfs_file.h"

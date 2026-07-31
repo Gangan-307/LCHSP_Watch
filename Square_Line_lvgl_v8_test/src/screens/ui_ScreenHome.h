@@ -17,8 +17,8 @@ extern void ui_event_ScreenHome(lv_event_t * e);
 extern lv_obj_t * ui_ScreenHome;
 extern void ui_event_MainPanel1(lv_event_t * e);
 extern lv_obj_t * ui_MainPanel1;
-extern lv_obj_t * ui_Label6;
-extern lv_obj_t * ui_Label7;
+extern lv_obj_t * ui_LabelTime;
+extern lv_obj_t * ui_LabelDate;
 extern lv_obj_t * ui_Label8;
 // CUSTOM VARIABLES
 

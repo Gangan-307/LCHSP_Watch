@@ -7,9 +7,8 @@
 #include "rtthread.h"
 #include "lvgl.h"
 #include "rtc.h"
+#include "ui.h"
 
-extern lv_obj_t *ui_Label6;
-extern lv_obj_t *ui_Label7;
 extern RTC_HandleTypeDef RTC_Handler;
 
 // LVGL定时器句柄
@@ -56,11 +55,11 @@ void update_ui_time(void)
     // 4. 使用互斥量保护UI操作
     rt_mutex_take(&ui_mutex, RT_WAITING_FOREVER);
     
-    if (ui_Label6 != NULL) {
-        lv_label_set_text(ui_Label6, time_str);
+    if (ui_LabelTime != NULL) {
+        lv_label_set_text(ui_LabelTime, time_str);
     }
-    if (ui_Label7 != NULL) {
-        lv_label_set_text(ui_Label7, date_str);
+    if (ui_LabelDate != NULL) {
+        lv_label_set_text(ui_LabelDate, date_str);
     }
     
     rt_mutex_release(&ui_mutex);
