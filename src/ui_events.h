@@ -3,6 +3,7 @@
 // LVGL version: 8.3.11
 // Project name: SquareLine_Project
 
+#include "lvgl.h"
 #ifndef _UI_EVENTS_H
 #define _UI_EVENTS_H
 
@@ -11,6 +12,8 @@ extern "C" {
 #endif
 
 void on_led_toggle(lv_event_t * e);
+void trigger_vibration(lv_event_t * e);
+void on_colorwheel_changed(lv_event_t * e);
 
 #ifdef __cplusplus
 } /*extern "C"*/

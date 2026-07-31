@@ -13,14 +13,11 @@ extern "C" {
 // SCREEN: ui_Screen4
 extern void ui_Screen4_screen_init(void);
 extern void ui_Screen4_screen_destroy(void);
+extern void ui_event_Screen4(lv_event_t * e);
 extern lv_obj_t * ui_Screen4;
-extern lv_obj_t * ui_Bar1;
-extern lv_obj_t * ui_Chart1;
-extern lv_obj_t * ui_Spinner1;
-extern lv_obj_t * ui_Spinbox1;
-extern lv_obj_t * ui_Dropdown1;
-extern lv_obj_t * ui_Switch1;
-extern lv_obj_t * ui_Slider1;
+extern void ui_event_MainPanel5(lv_event_t * e);
+extern lv_obj_t * ui_MainPanel5;
+extern lv_obj_t * ui_Colorwheel1;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

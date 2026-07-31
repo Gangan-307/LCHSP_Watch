@@ -5,6 +5,7 @@
  */
 
 #include "rtthread.h"
+#include "rgb.h"
 #include "bf0_hal.h"
 #include "drv_io.h"
 #include "stdio.h"

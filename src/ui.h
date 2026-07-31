@@ -23,9 +23,11 @@ extern "C" {
 #include "screens/ui_Screen3.h"
 #include "screens/ui_Screen1.h"
 #include "screens/ui_Screen4.h"
+#include "screens/ui_Screen5.h"
 
 ///////////////////// VARIABLES ////////////////////
 
+extern lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay);
 
 // EVENTS
 
@@ -36,7 +38,9 @@ LV_IMG_DECLARE(ui_img_light_png);    // assets/light.png
 LV_IMG_DECLARE(ui_img_run_png);    // assets/run.png
 LV_IMG_DECLARE(ui_img_keyboard_png);    // assets/keyboard.png
 LV_IMG_DECLARE(ui_img_setting_png);    // assets/setting.png
+LV_IMG_DECLARE(ui_img_fish_png);    // assets/fish.png
 LV_IMG_DECLARE(ui_img_ui1_png);    // assets/ui1.png
+LV_IMG_DECLARE(ui_img_fish4_png);    // assets/fish4.png
 
 // UI INIT
 void ui_init(void);
