@@ -1,11 +1,25 @@
 import os
 from building import *
 
-# Add source code
-src = Glob('*.c')
-src += Glob('components/*.c')
-src += Glob('screens/*.c')
+cwd = GetCurrentDir()
+module_dirs = [
+    'app',
+    'drivers',
+    'services',
+    'bluetooth',
+    'ui/music',
+    'ui/generated',
+    'ui/generated/components',
+    'ui/generated/screens',
+]
 
-group = DefineGroup('Applications', src, depend = [''])
+src = []
+for module_dir in module_dirs:
+    src += Glob(os.path.join(module_dir, '*.c'))
+
+include_dirs = [cwd]
+include_dirs += [os.path.join(cwd, module_dir) for module_dir in module_dirs]
+
+group = DefineGroup('Applications', src, depend = [''], CPPPATH = include_dirs)
 
 Return('group')

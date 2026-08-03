@@ -4,8 +4,8 @@
 // Project name: SquareLine_Project
 
 #include "ui.h"
-#include "vibrator.h"
-#include "rgb.h"
+#include "drivers/vibrator.h"
+#include "drivers/rgb.h"
 #include "ui_helpers.h"
 #include "lvgl.h"
 
@@ -35,8 +35,8 @@ void trigger_vibration(lv_event_t * e)
     lv_label_set_text(label, "功德 +1");
     lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
 
-    // 使用 CJK 字体，避免中文字符缺字显示为方框
-    lv_obj_set_style_text_font(label, &lv_font_simsun_16_cjk, LV_PART_MAIN);
+    // 使用项目当前启用的 CJK 默认字体，避免硬编码失效的字体符号
+    lv_obj_set_style_text_font(label, LV_FONT_DEFAULT, LV_PART_MAIN);
     lv_obj_set_style_text_letter_space(label, 1, LV_PART_MAIN);
     lv_obj_set_style_transform_zoom(label, 150, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_x(label, 0, LV_PART_MAIN);

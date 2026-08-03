@@ -7,7 +7,7 @@
 #include "rtthread.h"
 #include "lvgl.h"
 #include "rtc.h"
-#include "ui.h"
+#include "ui/generated/ui.h"
 
 extern RTC_HandleTypeDef RTC_Handler;
 
