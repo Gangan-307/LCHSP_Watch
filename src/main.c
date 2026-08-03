@@ -147,6 +147,7 @@
 #include "rgb.h"
 #include "adc.h"
 #include "battery_ui.h"
+#include "display_power.h"
 
 /* User code start from here --------------------------------------------------------*/
 
@@ -176,6 +177,7 @@ int main(void)
     update_ui_time();
     adc_init();
     battery_ui_init();
+    display_power_init();
     bt_pan_app_init();
 
     while (1)

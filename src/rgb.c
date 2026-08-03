@@ -46,14 +46,9 @@ void rgb_led_config(void)
         RT_ASSERT(0);
     }
 
-    /* 2. 根据不同的 SoC 芯片硬件平台映射对应的通道 */
-#ifdef SF32LB52X
     HAL_PIN_Set(PAD_PA32, GPTIM2_CH1, PIN_NOPULL, 1);   // RGB LED 52x  pwm3_cc1
-#elif defined SF32LB58X
-    HAL_PIN_Set(PAD_PB39, GPTIM3_CH4, PIN_NOPULL, 0);   // 58x          pwm4_cc4
-#elif defined SF32LB56X
-    HAL_PIN_Set(PAD_PB09, GPTIM3_CH4, PIN_NOPULL, 0);   // 566          pwm4_cc4
-#endif
+
+
 
     /* 3. 在 52x 平台上开启 LDO 外设供电 */
 #ifdef SF32LB52X
