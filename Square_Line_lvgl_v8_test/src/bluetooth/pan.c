@@ -13,9 +13,10 @@
 #include "bts2_app_inc.h"
 #include "ble_connection_manager.h"
 #include "bt_connection_manager.h"
+#include "music_app.h"
 
 #ifdef OTA_55X
-    #include "dfu_service.h"
+#include "dfu_service.h"
 #endif
 
 #include "ulog.h"
@@ -107,6 +108,8 @@ void pan_reconnect(void)
 
 static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8_t *data, uint16_t data_len)
 {
+    music_app_handle_bt_event(type, event_id, data, data_len);
+
     if (type == BT_NOTIFY_COMMON)
     {
         int pan_conn = 0;

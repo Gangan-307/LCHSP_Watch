@@ -36,14 +36,28 @@ static void display_turn_off(void)
     display_is_off = 1;
 }
 
-void display_power_wake(void)
+void display_power_notify_activity(void)
 {
-    if (lcd_device == NULL || !display_is_off)
+    if (lcd_device == NULL)
         return;
 
-    display_set_brightness(saved_brightness);
-    display_is_off = 0;
     lv_disp_trig_activity(NULL);
+
+    if (display_is_off)
+    {
+        display_set_brightness(saved_brightness);
+        display_is_off = 0;
+    }
+}
+
+void display_power_wake(void)
+{
+    display_power_notify_activity();
+}
+
+int display_power_is_off(void)
+{
+    return display_is_off;
 }
 
 static void display_power_timer_cb(lv_timer_t *timer)

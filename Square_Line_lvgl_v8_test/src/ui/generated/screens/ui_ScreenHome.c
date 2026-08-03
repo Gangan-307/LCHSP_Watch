@@ -10,6 +10,7 @@ lv_obj_t * ui_MainPanel1 = NULL;
 lv_obj_t * ui_LabelTime = NULL;
 lv_obj_t * ui_LabelDate = NULL;
 lv_obj_t * ui_Label8 = NULL;
+lv_obj_t * ui_MusicEntry = NULL;
 // event funtions
 void ui_event_ScreenHome(lv_event_t * e)
 {
@@ -29,6 +30,13 @@ void ui_event_MainPanel1(lv_event_t * e)
         lv_indev_wait_release(lv_indev_get_act());
         _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 200, 0, &ui_Screen2_screen_init);
     }
+}
+
+void ui_event_MusicEntry(lv_event_t * e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_CLICKED)
+        _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
+                          &ui_ScreenMusic_screen_init);
 }
 
 // build funtions
@@ -85,7 +93,27 @@ void ui_ScreenHome_screen_init(void)
     lv_obj_set_style_text_opa(ui_Label8, 200, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Label8, &lv_font_montserrat_12, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_MusicEntry = lv_btn_create(ui_MainPanel1);
+    lv_obj_set_size(ui_MusicEntry, 68, 68);
+    lv_obj_set_x(ui_MusicEntry, 0);
+    lv_obj_set_y(ui_MusicEntry, 125);
+    lv_obj_set_align(ui_MusicEntry, LV_ALIGN_CENTER);
+    lv_obj_set_style_radius(ui_MusicEntry, LV_RADIUS_CIRCLE, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_MusicEntry, lv_color_hex(0x27333D), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_MusicEntry, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(ui_MusicEntry, lv_color_hex(0x4FB286), LV_PART_MAIN | LV_STATE_PRESSED);
+    lv_obj_set_style_shadow_color(ui_MusicEntry, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(ui_MusicEntry, 12, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_opa(ui_MusicEntry, LV_OPA_50, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    lv_obj_t * music_icon = lv_label_create(ui_MusicEntry);
+    lv_label_set_text(music_icon, LV_SYMBOL_AUDIO);
+    lv_obj_center(music_icon);
+    lv_obj_set_style_text_font(music_icon, &lv_font_montserrat_24, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(music_icon, lv_color_hex(0xF2C14E), LV_PART_MAIN | LV_STATE_DEFAULT);
+
     lv_obj_add_event_cb(ui_MainPanel1, ui_event_MainPanel1, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_MusicEntry, ui_event_MusicEntry, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(ui_ScreenHome, ui_event_ScreenHome, LV_EVENT_ALL, NULL);
 
 }
@@ -100,5 +128,6 @@ void ui_ScreenHome_screen_destroy(void)
     ui_LabelTime = NULL;
     ui_LabelDate = NULL;
     ui_Label8 = NULL;
+    ui_MusicEntry = NULL;
 
 }

@@ -3,8 +3,8 @@
  */
 
 #include "lvgl.h"
-#include "ui.h"
-#include "adc.h"
+#include "ui/generated/ui.h"
+#include "drivers/adc.h"
 #include "rtdevice.h"
 #include "battery_calculator.h"
 
