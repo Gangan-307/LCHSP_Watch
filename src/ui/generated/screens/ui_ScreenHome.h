@@ -22,6 +22,7 @@ extern lv_obj_t * ui_LabelDate;
 extern lv_obj_t * ui_Label8;
 extern void ui_event_MusicEntry(lv_event_t * e);
 extern lv_obj_t * ui_MusicEntry;
+extern lv_obj_t * ui_BluetoothStatus;
 // CUSTOM VARIABLES
 
 #ifdef __cplusplus

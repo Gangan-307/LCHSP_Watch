@@ -14,6 +14,8 @@
 #include "ble_connection_manager.h"
 #include "bt_connection_manager.h"
 #include "music_app.h"
+#include "pan.h"
+#include "battery_ble.h"
 
 #ifdef OTA_55X
 #include "dfu_service.h"
@@ -47,7 +49,7 @@ static rt_mailbox_t g_bt_app_mb;
 #ifdef BT_DEVICE_NAME
     static const char *local_name = BT_DEVICE_NAME;
 #else
-    static const char *local_name = "sifli_pan";
+    static const char *local_name = "铠甲勇士召唤器";
 #endif
 
 void bt_pan_set_retry_flag(uint8_t enable)
@@ -68,6 +70,11 @@ void bt_pan_set_retry_times(uint8_t times)
 uint8_t bt_pan_get_retry_time(void)
 {
     return g_bt_app_env.retry_max_times;
+}
+
+uint8_t bt_pan_is_connected(void)
+{
+    return g_bt_app_env.bt_connected ? 1U : 0U;
 }
 
 void bt_app_connect_pan_timeout_handle(void *parameter)
@@ -118,6 +125,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
         {
         case BT_NOTIFY_COMMON_BT_STACK_READY:
         {
+            battery_ble_stack_ready();
             rt_mb_send(g_bt_app_mb, BT_APP_READY);
         }
         break;

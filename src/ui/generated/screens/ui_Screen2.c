@@ -154,6 +154,7 @@ void ui_Screen2_screen_init(void)
     lv_obj_set_y(ui_Label3, 45);
     lv_obj_set_align(ui_Label3, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label3, "LIGHT OFF");
+    update_led_toggle_label(ui_Label3);
     lv_obj_set_style_text_color(ui_Label3, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_Label3, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_letter_space(ui_Label3, 2, LV_PART_MAIN | LV_STATE_DEFAULT);

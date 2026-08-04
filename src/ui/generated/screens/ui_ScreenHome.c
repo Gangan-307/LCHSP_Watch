@@ -4,6 +4,8 @@
 // Project name: SquareLine_Project
 
 #include "../ui.h"
+#include "bluetooth/pan.h"
+#include "services/battery_ui.h"
 
 lv_obj_t * ui_ScreenHome = NULL;
 lv_obj_t * ui_MainPanel1 = NULL;
@@ -11,6 +13,32 @@ lv_obj_t * ui_LabelTime = NULL;
 lv_obj_t * ui_LabelDate = NULL;
 lv_obj_t * ui_Label8 = NULL;
 lv_obj_t * ui_MusicEntry = NULL;
+lv_obj_t * ui_BluetoothStatus = NULL;
+
+static lv_timer_t *home_bluetooth_timer;
+
+static void ui_home_bluetooth_update(void)
+{
+    if (ui_BluetoothStatus == NULL)
+        return;
+
+    if (bt_pan_is_connected())
+    {
+        lv_obj_set_style_text_color(ui_BluetoothStatus, lv_color_hex(0x2F9BFF),
+                                    LV_PART_MAIN | LV_STATE_DEFAULT);
+    }
+    else
+    {
+        lv_obj_set_style_text_color(ui_BluetoothStatus, lv_color_hex(0x777777),
+                                    LV_PART_MAIN | LV_STATE_DEFAULT);
+    }
+}
+
+static void ui_home_bluetooth_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    ui_home_bluetooth_update();
+}
 // event funtions
 void ui_event_ScreenHome(lv_event_t * e)
 {
@@ -57,6 +85,17 @@ void ui_ScreenHome_screen_init(void)
     lv_obj_set_style_bg_color(ui_MainPanel1, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_MainPanel1, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_MainPanel1, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    battery_ui_bind_home(ui_MainPanel1);
+
+    ui_BluetoothStatus = lv_label_create(ui_MainPanel1);
+    lv_label_set_text(ui_BluetoothStatus, LV_SYMBOL_BLUETOOTH);
+    lv_obj_align(ui_BluetoothStatus, LV_ALIGN_TOP_LEFT, 18, 18);
+    lv_obj_set_style_text_font(ui_BluetoothStatus, &lv_font_montserrat_24,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_home_bluetooth_update();
+    home_bluetooth_timer = lv_timer_create(ui_home_bluetooth_timer_cb, 500, NULL);
 
     ui_LabelTime = lv_label_create(ui_MainPanel1);
     lv_obj_set_width(ui_LabelTime, LV_SIZE_CONTENT);   /// 1
@@ -120,6 +159,13 @@ void ui_ScreenHome_screen_init(void)
 
 void ui_ScreenHome_screen_destroy(void)
 {
+    if (home_bluetooth_timer != NULL)
+    {
+        lv_timer_del(home_bluetooth_timer);
+        home_bluetooth_timer = NULL;
+    }
+
+    battery_ui_unbind_home();
     if(ui_ScreenHome) lv_obj_del(ui_ScreenHome);
 
     // NULL screen variables
@@ -129,5 +175,6 @@ void ui_ScreenHome_screen_destroy(void)
     ui_LabelDate = NULL;
     ui_Label8 = NULL;
     ui_MusicEntry = NULL;
+    ui_BluetoothStatus = NULL;
 
 }

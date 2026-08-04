@@ -6,8 +6,37 @@
 #include "ui.h"
 #include "drivers/vibrator.h"
 #include "drivers/rgb.h"
+#include "services/power_manager.h"
 #include "ui_helpers.h"
 #include "lvgl.h"
+
+#define LED_COLOR_WHITE  (0x00FFFFFFU)
+
+/* The selected color is retained while the light output is switched off. */
+static rt_bool_t led_is_on = RT_FALSE;
+static uint32_t led_selected_color = LED_COLOR_WHITE;
+static uint8_t led_brightness_percent = 100U;
+
+static void led_update_toggle_label(lv_obj_t *label)
+{
+    if (label != NULL)
+        lv_label_set_text(label, led_is_on ? "LIGHT ON" : "LIGHT OFF");
+}
+
+static void led_apply_selected_color(void)
+{
+    uint32_t red;
+    uint32_t green;
+    uint32_t blue;
+
+    if (led_is_on)
+    {
+        red = ((led_selected_color >> 16) & 0xFFU) * led_brightness_percent / 100U;
+        green = ((led_selected_color >> 8) & 0xFFU) * led_brightness_percent / 100U;
+        blue = (led_selected_color & 0xFFU) * led_brightness_percent / 100U;
+        rgb_led_set_color((red << 16) | (green << 8) | blue);
+    }
+}
 
 static void fade_label_exec_cb(void * var, int32_t value)
 {
@@ -84,23 +113,19 @@ void on_led_toggle(lv_event_t * e)
 {
     (void)e;
 
-    static rt_bool_t is_on = RT_FALSE; // 记录开关状态
-
-    if (is_on == RT_FALSE) 
+    if (led_is_on == RT_FALSE)
     {
-        // 执行开灯：设置成白色
-        rgb_led_set_color(0xffffff); 
-        lv_label_set_text(ui_Label3, "LIGHT ON");
+        led_is_on = RT_TRUE;
+        led_apply_selected_color();
+        led_update_toggle_label(ui_Label3);
         vibrator_vibrate(65, 60);
-        is_on = RT_TRUE;
-    } 
-    else 
+    }
+    else
     {
-        // 执行关灯：设置成黑色
-        rgb_led_set_color(0x000000); 
-        lv_label_set_text(ui_Label3, "LIGHT OFF");
+        led_is_on = RT_FALSE;
+        rgb_led_set_color(0x000000);
+        led_update_toggle_label(ui_Label3);
         vibrator_vibrate(65, 60);
-        is_on = RT_FALSE;
     }
 }
 
@@ -110,5 +135,50 @@ void on_colorwheel_changed(lv_event_t * e)
     lv_color_t color = lv_colorwheel_get_rgb(colorwheel);
     uint32_t rgb = lv_color_to32(color) & 0x00FFFFFFU;
 
-    rgb_led_set_color(rgb);
+    led_selected_color = rgb;
+    led_apply_selected_color();
+}
+
+void on_white_color_selected(lv_event_t * e)
+{
+    (void)e;
+
+    led_selected_color = LED_COLOR_WHITE;
+    led_apply_selected_color();
+}
+
+void on_rgb_brightness_changed(lv_event_t * e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    lv_obj_t *value_label = lv_event_get_user_data(e);
+
+    led_brightness_percent = (uint8_t)lv_slider_get_value(slider);
+    if (value_label != NULL)
+        lv_label_set_text_fmt(value_label, "BRIGHTNESS %u%%",
+                              (unsigned int)led_brightness_percent);
+
+    led_apply_selected_color();
+}
+
+void update_led_toggle_label(lv_obj_t * label)
+{
+    led_update_toggle_label(label);
+}
+
+void on_power_slider_event(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    lv_obj_t *slider = lv_event_get_target(e);
+
+    if (event_code != LV_EVENT_RELEASED && event_code != LV_EVENT_PRESS_LOST)
+        return;
+
+    if (lv_slider_get_value(slider) >= 95)
+    {
+        lv_slider_set_value(slider, 100, LV_ANIM_OFF);
+        if (power_manager_shutdown() == RT_EOK)
+            return;
+    }
+
+    lv_slider_set_value(slider, 0, LV_ANIM_ON);
 }
