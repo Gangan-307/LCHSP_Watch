@@ -30,6 +30,7 @@ void music_app_retry_cover_request(void);
 void music_app_previous(void);
 void music_app_toggle_playback(void);
 void music_app_next(void);
+/* Adjust the local amplifier and synchronize its mapped AVRCP volume. */
 void music_app_adjust_volume(int delta);
 
 #ifdef __cplusplus

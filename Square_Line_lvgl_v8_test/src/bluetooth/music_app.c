@@ -35,6 +35,16 @@ static struct rt_mutex music_state_lock;
 static FILE *cover_file;
 static uint32_t cover_received_bytes;
 
+static int music_copy_remote_addr(bt_notify_device_mac_t *address);
+
+static void music_update_volume_snapshot(uint8_t volume)
+{
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    music_state.snapshot.volume = volume;
+    music_state.snapshot.volume_valid = 1;
+    rt_mutex_release(&music_state_lock);
+}
+
 static uint32_t music_append_utf8(char *destination, uint32_t length,
                                   uint32_t codepoint)
 {
@@ -303,11 +313,22 @@ static int music_song_changed(const bt_notify_avrcp_music_detail_info_t *detail)
 
 static void music_set_connection(const bt_notify_device_mac_t *address, int connected)
 {
+    uint8_t volume = 64;
+    uint8_t volume_valid = 0;
+
+#ifdef AUDIO_USING_MANAGER
+    uint8_t local_volume = audio_server_get_private_volume(AUDIO_TYPE_BT_MUSIC);
+    uint8_t max_volume = audio_server_get_max_volume();
+
+    volume = bt_interface_avrcp_local_vol_2_abs_vol(local_volume, max_volume);
+    volume_valid = 1;
+#endif
+
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
     music_state.snapshot.connected = connected ? 1 : 0;
     music_state.snapshot.playing = 0;
-    music_state.snapshot.volume = 64;
-    music_state.snapshot.volume_valid = 0;
+    music_state.snapshot.volume = volume;
+    music_state.snapshot.volume_valid = volume_valid;
     if (connected)
     {
         music_state.remote_addr = *address;
@@ -475,10 +496,29 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
     }
     else if (event_id == BT_NOTIFY_AVRCP_ABSOLUTE_VOLUME && data != NULL)
     {
-        rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
-        music_state.snapshot.volume = *data;
-        music_state.snapshot.volume_valid = 1;
-        rt_mutex_release(&music_state_lock);
+        uint8_t volume = *data;
+
+#ifdef AUDIO_USING_MANAGER
+        uint8_t max_volume = audio_server_get_max_volume();
+        uint8_t local_volume = bt_interface_avrcp_abs_vol_2_local_vol(volume,
+                                                                        max_volume);
+
+        audio_server_set_private_volume(AUDIO_TYPE_BT_MUSIC, local_volume);
+        /* Keep the phone on a value that represents an exact local volume step. */
+        volume = bt_interface_avrcp_local_vol_2_abs_vol(local_volume, max_volume);
+#endif
+        music_update_volume_snapshot(volume);
+
+#ifdef AUDIO_USING_MANAGER
+        if (volume != *data)
+        {
+            bt_notify_device_mac_t address;
+
+            if (music_copy_remote_addr(&address))
+                bt_interface_avrcp_set_absolute_volume_as_ct_role_ext(&address,
+                                                                       volume);
+        }
+#endif
     }
 #if defined(RT_USING_DFS) && defined(CFG_AVRCP_COVER_ART)
     else if (event_id == BTS2MU_AVRCP_COVER_ART_CONN_CFM)
@@ -611,9 +651,33 @@ void music_app_next(void)
 void music_app_adjust_volume(int delta)
 {
     bt_notify_device_mac_t address;
+    int has_remote_addr;
+
+#ifdef AUDIO_USING_MANAGER
+    int local_volume;
+    uint8_t max_volume = audio_server_get_max_volume();
+    uint8_t volume;
+
+    local_volume = audio_server_get_private_volume(AUDIO_TYPE_BT_MUSIC);
+    local_volume += delta;
+    if (local_volume < 0)
+        local_volume = 0;
+    else if (local_volume > max_volume)
+        local_volume = max_volume;
+
+    audio_server_set_private_volume(AUDIO_TYPE_BT_MUSIC, (uint8_t)local_volume);
+    volume = bt_interface_avrcp_local_vol_2_abs_vol((uint8_t)local_volume,
+                                                     max_volume);
+    music_update_volume_snapshot(volume);
+
+    has_remote_addr = music_copy_remote_addr(&address);
+    if (has_remote_addr)
+        bt_interface_avrcp_set_absolute_volume_as_ct_role_ext(&address, volume);
+#else
     int volume;
 
-    if (!music_copy_remote_addr(&address))
+    has_remote_addr = music_copy_remote_addr(&address);
+    if (!has_remote_addr)
         return;
 
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
@@ -629,4 +693,5 @@ void music_app_adjust_volume(int delta)
 
     bt_interface_avrcp_set_absolute_volume_as_ct_role_ext(&address,
                                                            (uint8_t)volume);
+#endif
 }
