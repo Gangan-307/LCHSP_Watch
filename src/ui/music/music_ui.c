@@ -67,9 +67,9 @@ static void music_ui_physical_key_event(uint32_t key_index)
         return;
 
     if (key_index == 0)
-        music_app_adjust_volume(8);
+        music_app_adjust_volume(1);
     else if (key_index == 1)
-        music_app_adjust_volume(-8);
+        music_app_adjust_volume(-1);
 }
 
 static lv_obj_t *music_ui_create_button(lv_obj_t *parent, const char *symbol,
