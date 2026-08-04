@@ -5,9 +5,11 @@ drivers/rgb.c
 drivers/vibrator.c
 services/battery_ui.c
 services/input_wake.c
+services/power_manager.c
 services/rtc.c
 services/time_sync.c
 services/wrist_wake.c
+bluetooth/battery_ble.c
 bluetooth/music_app.c
 bluetooth/pan.c
 ui/music/music_ui.c

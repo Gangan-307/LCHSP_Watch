@@ -17,6 +17,7 @@
 #include "services/battery_ui.h"
 #include "drivers/display_power.h"
 #include "services/input_wake.h"
+#include "services/power_manager.h"
 #include "services/wrist_wake.h"
 #include "bluetooth/music_app.h"
 
@@ -58,9 +59,12 @@ int main(void)
     rt_err_t ret;
     rt_uint32_t ms;
 
+    power_manager_boot_gate();
+    power_manager_startup_feedback();
     rtc_config();
     set_date_time();
     rgb_led_config();
+    rgb_led_set_color(0x000000);
 
     ret = littlevgl2rtt_init("lcd");
     if (ret != RT_EOK)
