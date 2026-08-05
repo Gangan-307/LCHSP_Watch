@@ -28,10 +28,10 @@ void update_ui_time(void)
     RTC_DateTypeDef RTC_DateStruct = {0};
     char time_str[16] = {0};
     char date_str[32] = {0};
-    const char *week_days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", 
-                                "Thursday", "Friday", "Saturday"};
-    const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    const char *week_days[] = {"SUN", "MON", "TUE", "WED",
+                                "THU", "FRI", "SAT"};
+    const char *months[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
     
     // 1. 获取RTC时间
     HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
@@ -40,13 +40,13 @@ void update_ui_time(void)
         HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
     }
     
-    // 2. 格式化时间字符串 "HH:MM:SS"
-    snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", 
-             RTC_TimeStruct.Hours, RTC_TimeStruct.Minutes, RTC_TimeStruct.Seconds);
+    // 2. Format the clock face without seconds to keep the home screen stable.
+    snprintf(time_str, sizeof(time_str), "%02d:%02d",
+             RTC_TimeStruct.Hours, RTC_TimeStruct.Minutes);
     
-    // 3. 格式化日期字符串 "Friday, Oct 25" (不显示年份)
+    // 3. Short, fixed-width date format for the watch face.
     if (RTC_DateStruct.Month >= 1 && RTC_DateStruct.Month <= 12) {
-        snprintf(date_str, sizeof(date_str), "%s, %s %d",
+        snprintf(date_str, sizeof(date_str), "%s - %s %02d",
                  week_days[RTC_DateStruct.WeekDay % 7],
                  months[RTC_DateStruct.Month - 1],
                  RTC_DateStruct.Date);

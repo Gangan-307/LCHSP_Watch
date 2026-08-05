@@ -60,6 +60,23 @@ int display_power_is_off(void)
     return display_is_off;
 }
 
+uint8_t display_power_get_brightness(void)
+{
+    return saved_brightness;
+}
+
+void display_power_set_brightness(uint8_t brightness)
+{
+    if (brightness == 0U)
+        brightness = 1U;
+    else if (brightness > 100U)
+        brightness = 100U;
+
+    saved_brightness = brightness;
+    if (!display_is_off)
+        display_set_brightness(saved_brightness);
+}
+
 static void display_power_timer_cb(lv_timer_t *timer)
 {
     uint32_t inactive_time;

@@ -5,6 +5,7 @@
 
 #include "ui.h"
 #include "ui_helpers.h"
+#include "home_gestures.h"
 
 ///////////////////// VARIABLES ////////////////////
 lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay);
@@ -71,6 +72,7 @@ void ui_init(void)
 
 void ui_destroy(void)
 {
+    home_gestures_destroy();
     ui_ScreenHome_screen_destroy();
     ui_Screen2_screen_destroy();
     ui_Screen3_screen_destroy();

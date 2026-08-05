@@ -45,6 +45,9 @@ static music_app_state_t music_state;
 static struct rt_mutex music_state_lock;
 static FILE *cover_file;
 static uint32_t cover_received_bytes;
+#ifndef AUDIO_USING_MANAGER
+static uint8_t speaker_muted;
+#endif
 
 static int music_copy_remote_addr(bt_notify_device_mac_t *address);
 
@@ -706,6 +709,60 @@ void music_app_next(void)
 
     if (music_copy_remote_addr(&address))
         bt_interface_avrcp_next_ext(&address);
+}
+
+void music_app_set_volume(uint8_t volume)
+{
+    bt_notify_device_mac_t address;
+    int has_remote_addr;
+
+    if (volume > 127U)
+        volume = 127U;
+
+#ifdef AUDIO_USING_MANAGER
+    uint8_t max_volume = audio_server_get_max_volume();
+    uint8_t local_volume = bt_interface_avrcp_abs_vol_2_local_vol(volume,
+                                                                    max_volume);
+
+    audio_server_set_private_volume(AUDIO_TYPE_BT_MUSIC, local_volume);
+    volume = bt_interface_avrcp_local_vol_2_abs_vol(local_volume, max_volume);
+    music_update_volume_snapshot(volume);
+
+    has_remote_addr = music_copy_remote_addr(&address);
+    if (has_remote_addr)
+    {
+        music_track_volume_echo(volume);
+        bt_interface_avrcp_set_absolute_volume_as_ct_role_ext(&address, volume);
+    }
+#else
+    has_remote_addr = music_copy_remote_addr(&address);
+
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    music_state.snapshot.volume = volume;
+    music_state.snapshot.volume_valid = 1U;
+    rt_mutex_release(&music_state_lock);
+
+    if (has_remote_addr)
+        bt_interface_avrcp_set_absolute_volume_as_ct_role_ext(&address, volume);
+#endif
+}
+
+int music_app_is_speaker_muted(void)
+{
+#ifdef AUDIO_USING_MANAGER
+    return audio_server_get_public_speaker_mute() != 0;
+#else
+    return speaker_muted != 0U;
+#endif
+}
+
+void music_app_set_speaker_muted(int muted)
+{
+#ifdef AUDIO_USING_MANAGER
+    audio_server_set_public_speaker_mute(muted ? 1U : 0U);
+#else
+    speaker_muted = muted ? 1U : 0U;
+#endif
 }
 
 void music_app_adjust_volume(int delta)

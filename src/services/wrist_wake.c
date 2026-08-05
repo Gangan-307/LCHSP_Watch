@@ -37,6 +37,7 @@ static rt_device_t lsm6dsl_device;
 static struct rt_thread wrist_thread;
 static rt_uint8_t wrist_thread_stack[WRIST_THREAD_STACK_SIZE];
 static volatile rt_uint8_t wrist_wake_pending;
+static volatile rt_uint8_t wrist_wake_enabled = 1U;
 static float gravity_reference[3];
 static int gravity_reference_valid;
 static uint8_t local_wake_cooldown;
@@ -115,6 +116,13 @@ static void wrist_detect_thread_entry(void *parameter)
         rt_size_t index;
         uint16_t valid_count = 0;
 
+        if (!wrist_wake_enabled)
+        {
+            wrist_wake_pending = 0;
+            rt_thread_mdelay(WRIST_SAMPLE_DELAY_MS);
+            continue;
+        }
+
         sample_count = rt_device_read(lsm6dsl_device, 0, samples,
                                       WRIST_SAMPLE_COUNT);
         if (sample_count > 0)
@@ -167,7 +175,7 @@ static void wrist_wake_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
 
-    if (wrist_wake_pending)
+    if (wrist_wake_enabled && wrist_wake_pending)
     {
         wrist_wake_pending = 0;
         display_power_notify_activity();
@@ -209,10 +217,32 @@ void wrist_wake_init(void)
     rt_thread_startup(&wrist_thread);
 }
 
+int wrist_wake_is_enabled(void)
+{
+    return wrist_wake_enabled != 0U;
+}
+
+void wrist_wake_set_enabled(int enabled)
+{
+    wrist_wake_enabled = enabled ? 1U : 0U;
+    if (!wrist_wake_enabled)
+        wrist_wake_pending = 0U;
+}
+
 #else
 
 void wrist_wake_init(void)
 {
+}
+
+int wrist_wake_is_enabled(void)
+{
+    return 0;
+}
+
+void wrist_wake_set_enabled(int enabled)
+{
+    (void)enabled;
 }
 
 #endif
