@@ -32,6 +32,9 @@ void music_app_toggle_playback(void);
 void music_app_next(void);
 /* Adjust the local amplifier and synchronize its mapped AVRCP volume. */
 void music_app_adjust_volume(int delta);
+void music_app_set_volume(uint8_t volume);
+int music_app_is_speaker_muted(void);
+void music_app_set_speaker_muted(int muted);
 
 #ifdef __cplusplus
 }

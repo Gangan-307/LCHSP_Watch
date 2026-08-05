@@ -17,6 +17,11 @@ static rt_bool_t led_is_on = RT_FALSE;
 static uint32_t led_selected_color = LED_COLOR_WHITE;
 static uint8_t led_brightness_percent = 100U;
 
+int led_is_enabled(void)
+{
+    return led_is_on == RT_TRUE;
+}
+
 static void led_update_toggle_label(lv_obj_t *label)
 {
     if (label != NULL)

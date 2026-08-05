@@ -11,10 +11,12 @@ set(SOURCES
     services/time_sync.c
     services/wrist_wake.c
     bluetooth/battery_ble.c
+    bluetooth/find_phone_ble.c
     bluetooth/music_app.c
     bluetooth/pan.c
     ui/music/music_ui.c
     ui/generated/ui.c
+    ui/generated/home_gestures.c
     ui/generated/ui_events.c
     ui/generated/ui_helpers.c
     ui/generated/components/ui_comp_hook.c

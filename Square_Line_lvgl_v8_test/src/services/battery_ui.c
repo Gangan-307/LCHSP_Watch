@@ -411,7 +411,7 @@ static void battery_ui_refresh(void)
     lv_obj_set_style_text_color(battery_status_label,
                                 status.external_power_present ? lv_color_hex(0x55E391) :
                                 (status.low_battery ? lv_color_hex(0xFF5C5C) :
-                                 lv_color_hex(0xFFFFFF)),
+                                 lv_color_hex(0xF4C86A)),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
     displayed_battery_percent = status.percent;
     displayed_battery_valid = status.valid;
@@ -437,8 +437,8 @@ void battery_ui_bind_home(lv_obj_t *parent)
     battery_status_label = lv_label_create(parent);
     lv_obj_set_width(battery_status_label, LV_SIZE_CONTENT);
     lv_obj_set_height(battery_status_label, LV_SIZE_CONTENT);
-    lv_obj_align(battery_status_label, LV_ALIGN_TOP_RIGHT, -18, 18);
-    lv_obj_set_style_text_font(battery_status_label, &lv_font_montserrat_20,
+    lv_obj_align(battery_status_label, LV_ALIGN_TOP_RIGHT, -24, 20);
+    lv_obj_set_style_text_font(battery_status_label, &lv_font_montserrat_16,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(battery_status_label, LV_OPA_COVER,
                               LV_PART_MAIN | LV_STATE_DEFAULT);

@@ -8,6 +8,8 @@ extern "C" {
 #endif
 
 uint8_t bt_pan_is_connected(void);
+uint8_t bt_pan_is_enabled(void);
+void bt_pan_set_enabled(uint8_t enabled);
 
 #ifdef __cplusplus
 }

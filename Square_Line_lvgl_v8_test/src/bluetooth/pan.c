@@ -16,6 +16,7 @@
 #include "music_app.h"
 #include "pan.h"
 #include "battery_ble.h"
+#include "find_phone_ble.h"
 
 #ifdef OTA_55X
 #include "dfu_service.h"
@@ -45,6 +46,9 @@ typedef struct
 
 static bt_app_t g_bt_app_env;
 static rt_mailbox_t g_bt_app_mb;
+/* Keep the user preference separate from transient link state. */
+static volatile uint8_t g_bt_enabled = 1U;
+static volatile uint8_t g_bt_stack_ready;
 
 #ifdef BT_DEVICE_NAME
     static const char *local_name = BT_DEVICE_NAME;
@@ -74,7 +78,38 @@ uint8_t bt_pan_get_retry_time(void)
 
 uint8_t bt_pan_is_connected(void)
 {
-    return g_bt_app_env.bt_connected ? 1U : 0U;
+    return (g_bt_enabled && g_bt_app_env.bt_connected) ? 1U : 0U;
+}
+
+uint8_t bt_pan_is_enabled(void)
+{
+    return g_bt_enabled;
+}
+
+void bt_pan_set_enabled(uint8_t enabled)
+{
+    enabled = enabled ? 1U : 0U;
+    if (g_bt_enabled == enabled)
+        return;
+
+    g_bt_enabled = enabled;
+    if (!enabled)
+    {
+        bt_pan_set_retry_flag(0);
+        if (g_bt_app_env.pan_connect_timer)
+            rt_timer_stop(g_bt_app_env.pan_connect_timer);
+
+        g_bt_app_env.bt_connected = FALSE;
+        g_bt_app_env.pan_connected = 0U;
+        if (g_bt_stack_ready)
+            bt_interface_close_bt();
+    }
+    else
+    {
+        bt_pan_set_retry_flag(1);
+        if (g_bt_stack_ready)
+            bt_interface_open_bt();
+    }
 }
 
 void bt_app_connect_pan_timeout_handle(void *parameter)
@@ -125,7 +160,11 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
         {
         case BT_NOTIFY_COMMON_BT_STACK_READY:
         {
+            g_bt_stack_ready = 1U;
             battery_ble_stack_ready();
+            find_phone_ble_stack_ready();
+            if (!g_bt_enabled)
+                bt_interface_close_bt();
             rt_mb_send(g_bt_app_mb, BT_APP_READY);
         }
         break;
@@ -171,7 +210,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
             break;
         }
 
-        if (pan_conn)
+        if (pan_conn && g_bt_enabled)
         {
             LOG_I("bd addr 0x%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n", g_bt_app_env.bd_addr.addr[5],
                   g_bt_app_env.bd_addr.addr[4], g_bt_app_env.bd_addr.addr[3],
