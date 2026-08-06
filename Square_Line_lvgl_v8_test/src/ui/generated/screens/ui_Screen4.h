@@ -13,6 +13,9 @@ extern "C" {
 // SCREEN: ui_Screen4
 extern void ui_Screen4_screen_init(void);
 extern void ui_Screen4_screen_destroy(void);
+extern void ui_Screen4_open_from_settings(void);
+extern void ui_Screen4_open_from_controls(void);
+extern void ui_Screen4_refresh_light_state(void);
 extern void ui_event_Screen4(lv_event_t * e);
 extern lv_obj_t * ui_Screen4;
 extern void ui_event_MainPanel5(lv_event_t * e);
@@ -25,4 +28,3 @@ extern lv_obj_t * ui_Colorwheel1;
 #endif
 
 #endif
-

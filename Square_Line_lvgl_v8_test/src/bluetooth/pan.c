@@ -95,6 +95,7 @@ void bt_pan_set_enabled(uint8_t enabled)
     g_bt_enabled = enabled;
     if (!enabled)
     {
+        find_phone_ble_close();
         bt_pan_set_retry_flag(0);
         if (g_bt_app_env.pan_connect_timer)
             rt_timer_stop(g_bt_app_env.pan_connect_timer);

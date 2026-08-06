@@ -7,6 +7,7 @@ extern "C" {
 
 void home_gestures_open_controls(void);
 void home_gestures_open_notifications(void);
+void home_gestures_refresh_controls_state(void);
 void home_gestures_destroy(void);
 
 #ifdef __cplusplus

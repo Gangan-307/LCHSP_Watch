@@ -25,7 +25,8 @@ set(SOURCES
     ui/generated/screens/ui_Screen2.c
     ui/generated/screens/ui_Screen3.c
     ui/generated/screens/ui_Screen4.c
-    ui/generated/screens/ui_Screen5.c)
+    ui/generated/screens/ui_Screen5.c
+    ui/generated/screens/ui_BluetoothSettings.c)
 
 add_library(ui ${SOURCES})
 

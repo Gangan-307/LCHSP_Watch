@@ -11,15 +11,121 @@
 #include "lvgl.h"
 
 #define LED_COLOR_WHITE  (0x00FFFFFFU)
+#define LED_AUTO_OFF_OPTION_COUNT  (5U)
+#define LED_BREATHE_PERIOD_MS      (40U)
+#define LED_FLASH_PERIOD_MS        (500U)
 
 /* The selected color is retained while the light output is switched off. */
 static rt_bool_t led_is_on = RT_FALSE;
 static uint32_t led_selected_color = LED_COLOR_WHITE;
 static uint8_t led_brightness_percent = 100U;
+static const uint32_t led_auto_off_delays_ms[LED_AUTO_OFF_OPTION_COUNT] = {
+    0U, 15000U, 30000U, 60000U, 300000U
+};
+static const char *const led_auto_off_labels[LED_AUTO_OFF_OPTION_COUNT] = {
+    "OFF", "15 SEC", "30 SEC", "1 MIN", "5 MIN"
+};
+static const char *const led_auto_off_descriptions[LED_AUTO_OFF_OPTION_COUNT] = {
+    "Manual switch-off only",
+    "Off after 15 seconds",
+    "Off after 30 seconds",
+    "Off after 1 minute",
+    "Off after 5 minutes"
+};
+
+typedef enum
+{
+    LED_EFFECT_STATIC,
+    LED_EFFECT_BREATHE,
+    LED_EFFECT_FLASH,
+    LED_EFFECT_COUNT,
+} led_effect_t;
+
+static const char *const led_effect_labels[LED_EFFECT_COUNT] = {
+    "STATIC", "BREATHE", "FLASH"
+};
+static const char *const led_effect_descriptions[LED_EFFECT_COUNT] = {
+    "Steady selected color",
+    "Breathing color loop",
+    "Blinking color loop"
+};
+
+static uint8_t led_auto_off_option;
+static led_effect_t led_effect = LED_EFFECT_STATIC;
+static lv_timer_t *led_auto_off_timer;
+static lv_timer_t *led_effect_timer;
+static uint16_t led_effect_phase;
+static uint8_t led_flash_is_on;
 
 int led_is_enabled(void)
 {
     return led_is_on == RT_TRUE;
+}
+
+uint32_t led_get_selected_color(void)
+{
+    return led_selected_color;
+}
+
+uint8_t led_get_brightness_percent(void)
+{
+    return led_brightness_percent;
+}
+
+uint16_t led_get_hue_degrees(void)
+{
+    int red = (int)((led_selected_color >> 16) & 0xFFU);
+    int green = (int)((led_selected_color >> 8) & 0xFFU);
+    int blue = (int)(led_selected_color & 0xFFU);
+    int max = red;
+    int min = red;
+    int delta;
+    int hue;
+
+    if (green > max)
+        max = green;
+    if (blue > max)
+        max = blue;
+    if (green < min)
+        min = green;
+    if (blue < min)
+        min = blue;
+
+    delta = max - min;
+    if (delta == 0)
+        return 0U;
+
+    if (max == red)
+        hue = (60 * (green - blue)) / delta;
+    else if (max == green)
+        hue = 120 + (60 * (blue - red)) / delta;
+    else
+        hue = 240 + (60 * (red - green)) / delta;
+
+    if (hue < 0)
+        hue += 360;
+
+    return (uint16_t)hue;
+}
+
+const char *led_get_auto_off_label(void)
+{
+    return led_auto_off_labels[led_auto_off_option];
+}
+
+const char *led_get_auto_off_description(void)
+{
+    return led_auto_off_descriptions[led_auto_off_option];
+}
+
+const char *led_get_effect_label(void)
+{
+    return led_effect_labels[led_effect];
+}
+
+const char *led_get_effect_description(void)
+{
+    return led_effect_descriptions[led_effect];
 }
 
 static void led_update_toggle_label(lv_obj_t *label)
@@ -28,19 +134,126 @@ static void led_update_toggle_label(lv_obj_t *label)
         lv_label_set_text(label, led_is_on ? "LIGHT ON" : "LIGHT OFF");
 }
 
-static void led_apply_selected_color(void)
+static void led_write_color(uint8_t brightness_percent)
 {
     uint32_t red;
     uint32_t green;
     uint32_t blue;
 
+    red = ((led_selected_color >> 16) & 0xFFU) * brightness_percent / 100U;
+    green = ((led_selected_color >> 8) & 0xFFU) * brightness_percent / 100U;
+    blue = (led_selected_color & 0xFFU) * brightness_percent / 100U;
+    rgb_led_set_color((red << 16) | (green << 8) | blue);
+}
+
+static void led_apply_selected_color(void)
+{
+    uint8_t effect_brightness;
+
+    if (!led_is_on)
+        return;
+
+    if (led_effect == LED_EFFECT_FLASH && !led_flash_is_on)
+    {
+        rgb_led_set_color(0x000000U);
+        return;
+    }
+
+    effect_brightness = led_brightness_percent;
+    if (led_effect == LED_EFFECT_BREATHE)
+    {
+        uint16_t phase = led_effect_phase <= 100U ?
+                         led_effect_phase : 200U - led_effect_phase;
+
+        if (phase < 8U)
+            phase = 8U;
+        effect_brightness = (uint8_t)((led_brightness_percent * phase) / 100U);
+    }
+
+    led_write_color(effect_brightness);
+}
+
+static void led_stop_auto_off_timer(void)
+{
+    if (led_auto_off_timer != NULL)
+    {
+        lv_timer_del(led_auto_off_timer);
+        led_auto_off_timer = NULL;
+    }
+}
+
+static void led_stop_effect_timer(void)
+{
+    if (led_effect_timer != NULL)
+    {
+        lv_timer_del(led_effect_timer);
+        led_effect_timer = NULL;
+    }
+}
+
+static void led_auto_off_timer_cb(lv_timer_t *timer)
+{
+    if (timer == led_auto_off_timer)
+        led_auto_off_timer = NULL;
+    lv_timer_del(timer);
+
     if (led_is_on)
     {
-        red = ((led_selected_color >> 16) & 0xFFU) * led_brightness_percent / 100U;
-        green = ((led_selected_color >> 8) & 0xFFU) * led_brightness_percent / 100U;
-        blue = (led_selected_color & 0xFFU) * led_brightness_percent / 100U;
-        rgb_led_set_color((red << 16) | (green << 8) | blue);
+        led_is_on = RT_FALSE;
+        led_stop_effect_timer();
+        rgb_led_set_color(0x000000U);
+        led_update_toggle_label(ui_Label3);
+        ui_Screen4_refresh_light_state();
     }
+}
+
+static void led_effect_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+
+    if (!led_is_on || led_effect == LED_EFFECT_STATIC)
+        return;
+
+    if (led_effect == LED_EFFECT_BREATHE)
+    {
+        led_effect_phase = (uint16_t)(led_effect_phase + 6U);
+        if (led_effect_phase >= 200U)
+            led_effect_phase = 0U;
+    }
+    else
+    {
+        led_flash_is_on = led_flash_is_on ? 0U : 1U;
+    }
+
+    led_apply_selected_color();
+}
+
+static void led_restart_auto_off_timer(void)
+{
+    uint32_t delay_ms = led_auto_off_delays_ms[led_auto_off_option];
+
+    led_stop_auto_off_timer();
+    if (led_is_on && delay_ms > 0U)
+        led_auto_off_timer = lv_timer_create(led_auto_off_timer_cb, delay_ms, NULL);
+}
+
+static void led_restart_effect_timer(void)
+{
+    led_stop_effect_timer();
+    led_effect_phase = 0U;
+    led_flash_is_on = 1U;
+
+    if (!led_is_on)
+        return;
+
+    if (led_effect == LED_EFFECT_BREATHE)
+        led_effect_timer = lv_timer_create(led_effect_timer_cb,
+                                           LED_BREATHE_PERIOD_MS, NULL);
+    else if (led_effect == LED_EFFECT_FLASH)
+        led_effect_timer = lv_timer_create(led_effect_timer_cb,
+                                           LED_FLASH_PERIOD_MS, NULL);
+
+    led_apply_selected_color();
 }
 
 static void fade_label_exec_cb(void * var, int32_t value)
@@ -121,13 +334,16 @@ void on_led_toggle(lv_event_t * e)
     if (led_is_on == RT_FALSE)
     {
         led_is_on = RT_TRUE;
-        led_apply_selected_color();
+        led_restart_effect_timer();
+        led_restart_auto_off_timer();
         led_update_toggle_label(ui_Label3);
         vibrator_vibrate(65, 60);
     }
     else
     {
         led_is_on = RT_FALSE;
+        led_stop_auto_off_timer();
+        led_stop_effect_timer();
         rgb_led_set_color(0x000000);
         led_update_toggle_label(ui_Label3);
         vibrator_vibrate(65, 60);
@@ -142,6 +358,19 @@ void on_colorwheel_changed(lv_event_t * e)
 
     led_selected_color = rgb;
     led_apply_selected_color();
+}
+
+void led_cycle_auto_off_delay(void)
+{
+    led_auto_off_option = (uint8_t)((led_auto_off_option + 1U) %
+                                    LED_AUTO_OFF_OPTION_COUNT);
+    led_restart_auto_off_timer();
+}
+
+void led_cycle_effect(void)
+{
+    led_effect = (led_effect_t)((led_effect + 1) % LED_EFFECT_COUNT);
+    led_restart_effect_timer();
 }
 
 void on_white_color_selected(lv_event_t * e)
