@@ -79,5 +79,6 @@ void ui_destroy(void)
     ui_Screen1_screen_destroy();
     ui_Screen4_screen_destroy();
     ui_Screen5_screen_destroy();
+    ui_BluetoothSettings_screen_destroy();
     ui_ScreenMusic_screen_destroy();
 }

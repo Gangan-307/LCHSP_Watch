@@ -11,9 +11,55 @@
 #define DISPLAY_CHECK_PERIOD_MS       (200U)
 #define DISPLAY_DEFAULT_BRIGHTNESS    (100U)
 
+/* The SiFli LVGL touch port exposes its registered pointer input device. */
+extern lv_indev_t *touch_get_indev_handler(void);
+
 static rt_device_t lcd_device;
+static lv_indev_t *touch_indev;
 static uint8_t saved_brightness = DISPLAY_DEFAULT_BRIGHTNESS;
 static int display_is_off;
+static void (*touch_read_cb)(lv_indev_drv_t *drv, lv_indev_data_t *data);
+static uint8_t suppress_touch_until_release;
+
+static void display_power_touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
+{
+    uint8_t was_off = display_is_off;
+
+    touch_read_cb(drv, data);
+
+    if (suppress_touch_until_release)
+    {
+        if (data->state == LV_INDEV_STATE_RELEASED)
+            suppress_touch_until_release = 0U;
+
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
+
+    if (was_off && data->state == LV_INDEV_STATE_PRESSED)
+    {
+        /* The first touch after sleep only wakes the display. */
+        display_power_notify_activity();
+        suppress_touch_until_release = 1U;
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
+static void display_power_install_touch_wake_guard(void)
+{
+    touch_indev = touch_get_indev_handler();
+
+    if (touch_indev == NULL || touch_indev->driver == NULL ||
+        touch_indev->driver->type != LV_INDEV_TYPE_POINTER ||
+        touch_indev->driver->read_cb == NULL)
+        return;
+
+    if (touch_indev->driver->read_cb == display_power_touch_read)
+        return;
+
+    touch_read_cb = touch_indev->driver->read_cb;
+    touch_indev->driver->read_cb = display_power_touch_read;
+}
 
 static void display_set_brightness(uint8_t brightness)
 {
@@ -27,6 +73,9 @@ static void display_turn_off(void)
 
     if (display_is_off)
         return;
+
+    if (touch_indev != NULL)
+        lv_indev_reset(touch_indev, NULL);
 
     rt_device_control(lcd_device, RTGRAPHIC_CTRL_GET_BRIGHTNESS, &brightness);
     if (brightness > 0)
@@ -101,5 +150,6 @@ void display_power_init(void)
     if (lcd_device == NULL)
         return;
 
+    display_power_install_touch_wake_guard();
     lv_timer_create(display_power_timer_cb, DISPLAY_CHECK_PERIOD_MS, NULL);
 }

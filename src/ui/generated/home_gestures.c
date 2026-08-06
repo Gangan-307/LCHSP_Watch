@@ -394,7 +394,8 @@ static lv_obj_t *home_gestures_add_control_tile(lv_obj_t *parent,
                                   LV_PART_MAIN | LV_STATE_PRESSED);
         lv_obj_set_style_bg_opa(tile, LV_OPA_COVER,
                                 LV_PART_MAIN | LV_STATE_PRESSED);
-        lv_obj_add_event_cb(tile, event_cb, LV_EVENT_CLICKED, NULL);
+        /* Keep a long press separate from the normal tile action. */
+        lv_obj_add_event_cb(tile, event_cb, LV_EVENT_SHORT_CLICKED, NULL);
     }
 
     home_gestures_add_control_icon(tile, symbol, icon_type, icon_color, icon_out);
@@ -619,25 +620,33 @@ static void home_gestures_notifications_back(lv_event_t *event)
 
 static void home_gestures_light_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         on_led_toggle(event);
         home_gestures_refresh_controls();
+    }
+    else if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED)
+    {
+        ui_Screen4_open_from_controls();
     }
 }
 
 static void home_gestures_bluetooth_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         bt_pan_set_enabled(!bt_pan_is_enabled());
         home_gestures_refresh_controls();
+    }
+    else if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED)
+    {
+        ui_BluetoothSettings_open_from_controls();
     }
 }
 
 static void home_gestures_silent_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         music_app_set_speaker_muted(!music_app_is_speaker_muted());
         home_gestures_refresh_controls();
@@ -646,7 +655,7 @@ static void home_gestures_silent_event(lv_event_t *event)
 
 static void home_gestures_find_phone_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         if (find_phone_ble_is_requested())
             find_phone_ble_stop();
@@ -658,7 +667,7 @@ static void home_gestures_find_phone_event(lv_event_t *event)
 
 static void home_gestures_low_power_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         /* UI-only state until low-power policy is connected here. */
         control_low_power_enabled = !control_low_power_enabled;
@@ -668,7 +677,7 @@ static void home_gestures_low_power_event(lv_event_t *event)
 
 static void home_gestures_wrist_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+    if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
         wrist_wake_set_enabled(!wrist_wake_is_enabled());
         home_gestures_refresh_controls();
@@ -717,14 +726,21 @@ static void home_gestures_notifications_event(lv_event_t *event)
 static void home_gestures_create_controls(void)
 {
     lv_obj_t *panel = home_gestures_create_panel(&controls_screen);
+    lv_obj_t *bluetooth_tile;
+    lv_obj_t *light_tile;
 
     home_gestures_add_header(panel, "", "CONTROL CENTER",
                              home_gestures_controls_back);
-    home_gestures_add_control_tile(panel, 18, 72, LV_SYMBOL_BLUETOOTH,
-                                   HOME_CONTROL_ICON_KIND_SYMBOL, "BLUETOOTH",
-                                   "ON", lv_color_hex(HOME_GESTURE_BLUE),
-                                   home_gestures_bluetooth_event,
-                                   &control_bluetooth_value, &control_bluetooth_icon);
+    bluetooth_tile = home_gestures_add_control_tile(panel, 18, 72,
+                                                    LV_SYMBOL_BLUETOOTH,
+                                                    HOME_CONTROL_ICON_KIND_SYMBOL,
+                                                    "BLUETOOTH", "ON",
+                                                    lv_color_hex(HOME_GESTURE_BLUE),
+                                                    home_gestures_bluetooth_event,
+                                                    &control_bluetooth_value,
+                                                    &control_bluetooth_icon);
+    lv_obj_add_event_cb(bluetooth_tile, home_gestures_bluetooth_event,
+                        LV_EVENT_LONG_PRESSED, NULL);
     home_gestures_add_control_tile(panel, 141, 72, LV_SYMBOL_VOLUME_MAX,
                                    HOME_CONTROL_ICON_KIND_SYMBOL,
                                    "SILENT MODE", "OFF",
@@ -736,11 +752,15 @@ static void home_gestures_create_controls(void)
                                    lv_color_hex(HOME_GESTURE_BLUE),
                                    home_gestures_wrist_event, &control_wrist_value,
                                    &control_wrist_icon);
-    home_gestures_add_control_tile(panel, 18, 186, NULL, HOME_CONTROL_ICON_KIND_BULB,
-                                   "RGB LIGHT",
-                                   "OFF", lv_color_hex(HOME_GESTURE_MUTED),
-                                   home_gestures_light_event, &control_light_value,
-                                   &control_light_icon);
+    light_tile = home_gestures_add_control_tile(panel, 18, 186, NULL,
+                                                HOME_CONTROL_ICON_KIND_BULB,
+                                                "RGB LIGHT", "OFF",
+                                                lv_color_hex(HOME_GESTURE_MUTED),
+                                                home_gestures_light_event,
+                                                &control_light_value,
+                                                &control_light_icon);
+    lv_obj_add_event_cb(light_tile, home_gestures_light_event,
+                        LV_EVENT_LONG_PRESSED, NULL);
     home_gestures_add_control_tile(panel, 141, 186, NULL, HOME_CONTROL_ICON_KIND_PHONE,
                                    "FIND PHONE",
                                    "OFF", lv_color_hex(HOME_GESTURE_MUTED),
@@ -822,6 +842,11 @@ void home_gestures_open_notifications(void)
 
     home_gestures_wait_release();
     lv_scr_load_anim(notifications_screen, LV_SCR_LOAD_ANIM_MOVE_TOP, 220, 0, false);
+}
+
+void home_gestures_refresh_controls_state(void)
+{
+    home_gestures_refresh_controls();
 }
 
 void home_gestures_destroy(void)
