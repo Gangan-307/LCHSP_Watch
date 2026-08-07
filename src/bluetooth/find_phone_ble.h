@@ -21,6 +21,9 @@ void find_phone_ble_stop(void);
 void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,
                                           uint8_t charging);
 
+/* Notify the Android companion after the local daily activity total changes. */
+void find_phone_ble_publish_activity(void);
+
 /* Stop companion advertising before the Bluetooth radio is turned off. */
 void find_phone_ble_close(void);
 

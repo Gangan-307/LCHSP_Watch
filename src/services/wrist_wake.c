@@ -8,6 +8,7 @@
 #include "drv_io.h"
 #include "lvgl.h"
 #include "drivers/display_power.h"
+#include "services/activity_tracker.h"
 #include "wrist_wake.h"
 
 #if defined(BSP_USING_I2C3) && defined(ACC_USING_LSM6DSL) && defined(USING_CWM_LIB)
@@ -195,6 +196,9 @@ void wrist_wake_init(void)
     config.irq_pin.pin = RT_PIN_NONE;
     if (rt_hw_lsm6dsl_init(LSM6DSL_NAME, &config) != RT_EOK)
         return;
+
+    /* Enable the IMU pedometer before restoring the wrist detector's 52 Hz ODR. */
+    activity_tracker_init();
 
     lsm6dsl_device = rt_device_find(LSM6DSL_ACCE_DEVICE_NAME);
     if (lsm6dsl_device == RT_NULL)

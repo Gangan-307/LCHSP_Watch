@@ -6,6 +6,7 @@
 #include "../ui.h"
 #include "../home_gestures.h"
 #include "bluetooth/pan.h"
+#include "services/activity_tracker.h"
 #include "services/battery_ui.h"
 
 #define HOME_SCREEN_BG        0x0B0D11
@@ -25,6 +26,9 @@ lv_obj_t * ui_MusicEntry = NULL;
 lv_obj_t * ui_BluetoothStatus = NULL;
 
 static lv_timer_t *home_bluetooth_timer;
+static lv_obj_t *home_steps_label;
+static lv_obj_t *home_calories_label;
+static lv_obj_t *home_distance_label;
 
 static void ui_home_bluetooth_update(void)
 {
@@ -37,10 +41,38 @@ static void ui_home_bluetooth_update(void)
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
+static void ui_home_activity_update(void)
+{
+    activity_metrics_t metrics;
+    uint32_t distance_tenths_km;
+
+    if (home_steps_label == NULL || home_calories_label == NULL ||
+        home_distance_label == NULL)
+        return;
+
+    activity_tracker_get_metrics(&metrics);
+    if (!metrics.valid)
+    {
+        lv_label_set_text(home_steps_label, "--");
+        lv_label_set_text(home_calories_label, "--");
+        lv_label_set_text(home_distance_label, "--");
+        return;
+    }
+
+    distance_tenths_km = (metrics.distance_meters + 50U) / 100U;
+    lv_label_set_text_fmt(home_steps_label, "%lu", (unsigned long)metrics.steps);
+    lv_label_set_text_fmt(home_calories_label, "%u",
+                          (unsigned int)metrics.calories_kcal);
+    lv_label_set_text_fmt(home_distance_label, "%lu.%lu",
+                          (unsigned long)(distance_tenths_km / 10U),
+                          (unsigned long)(distance_tenths_km % 10U));
+}
+
 static void ui_home_bluetooth_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
     ui_home_bluetooth_update();
+    ui_home_activity_update();
 }
 
 static void ui_home_add_divider(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
@@ -58,8 +90,8 @@ static void ui_home_add_divider(lv_obj_t *parent, lv_coord_t x, lv_coord_t y,
     lv_obj_set_style_border_width(divider, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
-static void ui_home_add_metric(lv_obj_t *parent, lv_coord_t x,
-                               const char *value, const char *name)
+static lv_obj_t *ui_home_add_metric(lv_obj_t *parent, lv_coord_t x,
+                                    const char *value, const char *name)
 {
     lv_obj_t *value_label = lv_label_create(parent);
     lv_obj_t *name_label = lv_label_create(parent);
@@ -83,6 +115,8 @@ static void ui_home_add_metric(lv_obj_t *parent, lv_coord_t x,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(name_label, lv_color_hex(HOME_GOLD_SOFT),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    return value_label;
 }
 
 static lv_obj_t *ui_home_create_shortcut(lv_obj_t *parent, lv_coord_t x,
@@ -254,9 +288,10 @@ void ui_ScreenHome_screen_init(void)
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_home_add_divider(ui_MainPanel1, 35, 232, 320, 1);
-    ui_home_add_metric(ui_MainPanel1, 43, "--", "STEPS");
-    ui_home_add_metric(ui_MainPanel1, 151, "--", "KCAL");
-    ui_home_add_metric(ui_MainPanel1, 259, "--", "KM");
+    home_steps_label = ui_home_add_metric(ui_MainPanel1, 43, "--", "STEPS");
+    home_calories_label = ui_home_add_metric(ui_MainPanel1, 151, "--", "KCAL");
+    home_distance_label = ui_home_add_metric(ui_MainPanel1, 259, "--", "KM");
+    ui_home_activity_update();
     ui_home_add_divider(ui_MainPanel1, 139, 248, 1, 45);
     ui_home_add_divider(ui_MainPanel1, 250, 248, 1, 45);
     ui_home_add_divider(ui_MainPanel1, 35, 304, 320, 1);
@@ -298,4 +333,7 @@ void ui_ScreenHome_screen_destroy(void)
     ui_Label8 = NULL;
     ui_MusicEntry = NULL;
     ui_BluetoothStatus = NULL;
+    home_steps_label = NULL;
+    home_calories_label = NULL;
+    home_distance_label = NULL;
 }
