@@ -23,7 +23,7 @@ design/    网页版 UI 设计与交互原型
 
 ## 构建固件
 
-推荐使用 SiFli IDE 打开 `project/` 下的 HCPU 构建配置并编译下载。
+推荐使用 VSCode+SiFli SDK 插件打开 `project/` 下的 HCPU 构建配置并编译下载。
 
 命令行构建前，需要先在 SiFli SDK 根目录执行 `set_env.bat`，使环境变量 `SIFLI_SDK` 指向 SDK；随后进入 `project/` 目录，使用 SDK 提供的 SCons 构建流程编译 `build_sf32lb52-lchspi-ulp_hcpu` 配置。
 
