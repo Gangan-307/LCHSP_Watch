@@ -81,4 +81,6 @@ void ui_destroy(void)
     ui_Screen5_screen_destroy();
     ui_BluetoothSettings_screen_destroy();
     ui_ScreenMusic_screen_destroy();
+    ui_WeatherDetails_screen_destroy();
+    ui_MapDetails_screen_destroy();
 }

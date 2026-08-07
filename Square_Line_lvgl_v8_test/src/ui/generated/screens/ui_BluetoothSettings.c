@@ -4,6 +4,9 @@
 #include "../home_gestures.h"
 #include "bluetooth/find_phone_ble.h"
 #include "bluetooth/pan.h"
+#include "services/phone_sync.h"
+#include "ui/details/ui_MapDetails.h"
+#include "ui/details/ui_WeatherDetails.h"
 
 #define BT_SETTINGS_BG              0x050608
 #define BT_SETTINGS_BORDER          0x293340
@@ -51,6 +54,10 @@ static lv_obj_t *bt_phone_detail;
 static lv_obj_t *bt_phone_badge;
 static lv_obj_t *bt_find_phone_detail;
 static lv_obj_t *bt_find_phone_badge;
+static lv_obj_t *bt_weather_detail;
+static lv_obj_t *bt_weather_badge;
+static lv_obj_t *bt_location_detail;
+static lv_obj_t *bt_location_badge;
 static lv_obj_t *bt_pan_detail;
 static lv_obj_t *bt_pan_badge;
 static lv_obj_t *bt_pan_switch;
@@ -63,6 +70,30 @@ static void bt_settings_return_event(lv_event_t *event);
 static void bt_settings_radio_event(lv_event_t *event);
 static void bt_settings_find_phone_event(lv_event_t *event);
 static void bt_settings_pan_event(lv_event_t *event);
+static void bt_settings_weather_event(lv_event_t *event);
+static void bt_settings_location_event(lv_event_t *event);
+
+static const char *bt_settings_weather_name(uint8_t wmo_code)
+{
+    if (wmo_code == 0U)
+        return "Clear";
+    if (wmo_code <= 3U)
+        return "Cloudy";
+    if (wmo_code == 45U || wmo_code == 48U)
+        return "Fog";
+    if (wmo_code >= 51U && wmo_code <= 57U)
+        return "Drizzle";
+    if (wmo_code >= 61U && wmo_code <= 67U)
+        return "Rain";
+    if ((wmo_code >= 71U && wmo_code <= 77U) ||
+        (wmo_code >= 85U && wmo_code <= 86U))
+        return "Snow";
+    if (wmo_code >= 80U && wmo_code <= 82U)
+        return "Showers";
+    if (wmo_code >= 95U && wmo_code <= 99U)
+        return "Storm";
+    return "Weather";
+}
 
 static void bt_settings_wait_release(void)
 {
@@ -355,6 +386,10 @@ static lv_obj_t *bt_settings_add_toggle_row(lv_obj_t *parent, lv_coord_t y,
 
 void ui_BluetoothSettings_refresh(void)
 {
+    phone_weather_t weather;
+    phone_location_t location;
+    char weather_detail[48];
+    char location_detail[48];
     uint8_t enabled;
     uint8_t classic_connected;
     uint8_t companion_connected;
@@ -371,12 +406,49 @@ void ui_BluetoothSettings_refresh(void)
     bt_settings_set_switch(bt_radio_switch, enabled);
     bt_settings_set_switch(bt_pan_switch, bt_pan_preference);
 
+    phone_sync_get_weather(&weather);
+    if (weather.valid)
+    {
+        int current_c = weather.current_deci_c >= 0 ?
+                        (weather.current_deci_c + 5) / 10 :
+                        (weather.current_deci_c - 5) / 10;
+        rt_snprintf(weather_detail, sizeof(weather_detail), "%d C - %s - %u%%",
+                    current_c, bt_settings_weather_name(weather.wmo_code),
+                    (unsigned int)weather.humidity_percent);
+        lv_label_set_text(bt_weather_detail, weather_detail);
+        bt_settings_set_badge(bt_weather_badge, "LIVE", BT_BADGE_BLUE);
+    }
+    else
+    {
+        lv_label_set_text(bt_weather_detail, "Waiting for HSP app weather sync");
+        bt_settings_set_badge(bt_weather_badge, "WAITING", BT_BADGE_MUTED);
+    }
+
+    phone_sync_get_location(&location);
+    if (location.valid)
+    {
+        if (location.city_valid)
+            rt_snprintf(location_detail, sizeof(location_detail), "%s - %u m accuracy",
+                        location.city, (unsigned int)location.accuracy_meters);
+        else
+            rt_snprintf(location_detail, sizeof(location_detail),
+                        "City unavailable - %u m accuracy",
+                        (unsigned int)location.accuracy_meters);
+        lv_label_set_text(bt_location_detail, location_detail);
+        bt_settings_set_badge(bt_location_badge, "SYNCED", BT_BADGE_BLUE);
+    }
+    else
+    {
+        lv_label_set_text(bt_location_detail, "Waiting for HSP app location sync");
+        bt_settings_set_badge(bt_location_badge, "WAITING", BT_BADGE_MUTED);
+    }
+
     if (!enabled)
     {
         lv_label_set_text(bt_connection_title, "BLUETOOTH OFF");
         lv_label_set_text(bt_connection_detail, "Turn on to connect a phone");
         bt_settings_set_badge(bt_connection_badge, "OFF", BT_BADGE_MUTED);
-        lv_label_set_text(bt_radio_detail, "Off · Bluetooth services stopped");
+        lv_label_set_text(bt_radio_detail, "Off - Bluetooth services stopped");
         lv_label_set_text(bt_phone_detail, "Turn Bluetooth on to connect");
         bt_settings_set_badge(bt_phone_badge, "OFF", BT_BADGE_MUTED);
         lv_label_set_text(bt_find_phone_detail, "Bluetooth is turned off");
@@ -385,10 +457,10 @@ void ui_BluetoothSettings_refresh(void)
     else if (companion_connected)
     {
         lv_label_set_text(bt_connection_title, "HSP PHONE");
-        lv_label_set_text(bt_connection_detail, "BLE connected · synced just now");
+        lv_label_set_text(bt_connection_detail, "BLE connected - synced just now");
         bt_settings_set_badge(bt_connection_badge, "CONNECTED", BT_BADGE_BLUE);
-        lv_label_set_text(bt_radio_detail, "On · secure pairing enabled");
-        lv_label_set_text(bt_phone_detail, "BLE connected · companion ready");
+        lv_label_set_text(bt_radio_detail, "On - secure pairing enabled");
+        lv_label_set_text(bt_phone_detail, "BLE connected - companion ready");
         bt_settings_set_badge(bt_phone_badge, "CONNECTED", BT_BADGE_BLUE);
         lv_label_set_text(bt_find_phone_detail,
                           find_requested ? "Ring request sent to the phone" :
@@ -401,7 +473,7 @@ void ui_BluetoothSettings_refresh(void)
         lv_label_set_text(bt_connection_title, "PHONE LINKED");
         lv_label_set_text(bt_connection_detail, "Classic Bluetooth link is active");
         bt_settings_set_badge(bt_connection_badge, "LINKED", BT_BADGE_BLUE);
-        lv_label_set_text(bt_radio_detail, "On · classic Bluetooth connected");
+        lv_label_set_text(bt_radio_detail, "On - classic Bluetooth connected");
         lv_label_set_text(bt_phone_detail, "Open the HSP app to finish companion sync");
         bt_settings_set_badge(bt_phone_badge, "APP", BT_BADGE_AMBER);
         lv_label_set_text(bt_find_phone_detail, "Open the HSP app to enable this feature");
@@ -412,7 +484,7 @@ void ui_BluetoothSettings_refresh(void)
         lv_label_set_text(bt_connection_title, "PHONE READY");
         lv_label_set_text(bt_connection_detail, "Waiting for the HSP companion app");
         bt_settings_set_badge(bt_connection_badge, "ON", BT_BADGE_BLUE);
-        lv_label_set_text(bt_radio_detail, "On · secure pairing enabled");
+        lv_label_set_text(bt_radio_detail, "On - secure pairing enabled");
         lv_label_set_text(bt_phone_detail, "No active phone connection");
         bt_settings_set_badge(bt_phone_badge, "WAITING", BT_BADGE_MUTED);
         lv_label_set_text(bt_find_phone_detail, "Connect the HSP app first");
@@ -421,12 +493,12 @@ void ui_BluetoothSettings_refresh(void)
 
     if (bt_pan_preference)
     {
-        lv_label_set_text(bt_pan_detail, "Preference saved · service pending");
+        lv_label_set_text(bt_pan_detail, "Preference saved - service pending");
         bt_settings_set_badge(bt_pan_badge, "PLANNED", BT_BADGE_AMBER);
     }
     else
     {
-        lv_label_set_text(bt_pan_detail, "Off · use only for an active request");
+        lv_label_set_text(bt_pan_detail, "Off - use only for an active request");
         bt_settings_set_badge(bt_pan_badge, "OFF", BT_BADGE_MUTED);
     }
 }
@@ -438,6 +510,15 @@ void ui_BluetoothSettings_open_from_controls(void)
                       &ui_BluetoothSettings_screen_init);
     if (bt_settings_content != NULL)
         lv_obj_scroll_to_y(bt_settings_content, 0, LV_ANIM_OFF);
+    ui_BluetoothSettings_refresh();
+    bt_settings_start_refresh_timer();
+}
+
+void ui_BluetoothSettings_open_from_details(void)
+{
+    bt_settings_wait_release();
+    _ui_screen_change(&ui_BluetoothSettings, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
+                      &ui_BluetoothSettings_screen_init);
     ui_BluetoothSettings_refresh();
     bt_settings_start_refresh_timer();
 }
@@ -500,6 +581,24 @@ static void bt_settings_pan_event(lv_event_t *event)
 
     bt_pan_preference = bt_pan_preference ? 0U : 1U;
     ui_BluetoothSettings_refresh();
+}
+
+static void bt_settings_weather_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+
+    bt_settings_stop_refresh_timer();
+    ui_WeatherDetails_open();
+}
+
+static void bt_settings_location_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+
+    bt_settings_stop_refresh_timer();
+    ui_MapDetails_open();
 }
 
 void ui_BluetoothSettings_screen_init(void)
@@ -660,7 +759,7 @@ void ui_BluetoothSettings_screen_init(void)
     row_y += BT_SETTINGS_SECTION_HEIGHT;
     bt_settings_add_toggle_row(bt_settings_content, row_y, LV_SYMBOL_BLUETOOTH,
                                BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG,
-                               "Bluetooth", "On · secure pairing enabled", 1U,
+                               "Bluetooth", "On - secure pairing enabled", 1U,
                                bt_settings_radio_event, &bt_radio_detail,
                                &bt_radio_switch);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_SECTION_GAP;
@@ -670,7 +769,7 @@ void ui_BluetoothSettings_screen_init(void)
     row_y += BT_SETTINGS_SECTION_HEIGHT;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_CALL,
                         BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG, "HSP Phone",
-                        "BLE connected · companion ready", "CONNECTED", BT_BADGE_BLUE,
+                        "BLE connected - companion ready", "CONNECTED", BT_BADGE_BLUE,
                         NULL, &bt_phone_detail, &bt_phone_badge);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_GPS,
@@ -695,7 +794,7 @@ void ui_BluetoothSettings_screen_init(void)
     row_y += BT_SETTINGS_SECTION_HEIGHT;
     bt_settings_add_toggle_row(bt_settings_content, row_y, BT_SETTINGS_CLOCK_ICON,
                                BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG,
-                               "Time & time zone", "Sync on connect and once daily", 1U,
+                               "Time & time zone", "Sync from the HSP app on connection", 1U,
                                NULL, NULL, NULL);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_toggle_row(bt_settings_content, row_y, LV_SYMBOL_BATTERY_FULL,
@@ -703,10 +802,17 @@ void ui_BluetoothSettings_screen_init(void)
                                "Battery status", "Share level with companion app", 1U,
                                NULL, NULL, NULL);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
-    bt_settings_add_toggle_row(bt_settings_content, row_y, LV_SYMBOL_TINT,
-                               BT_SETTINGS_AMBER, BT_SETTINGS_AMBER_ICON_BG,
-                               "Weather", "Phone cached weather sync", 1U,
-                               NULL, NULL, NULL);
+    bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_TINT,
+                        BT_SETTINGS_AMBER, BT_SETTINGS_AMBER_ICON_BG,
+                        "Weather", "Waiting for HSP app weather sync", "WAITING",
+                        BT_BADGE_MUTED, bt_settings_weather_event, &bt_weather_detail,
+                        &bt_weather_badge);
+    row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
+    bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_GPS,
+                        BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG,
+                        "Map & location", "Waiting for HSP app location sync", "WAITING",
+                        BT_BADGE_MUTED, bt_settings_location_event, &bt_location_detail,
+                        &bt_location_badge);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_BELL,
                         BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG, "Notifications",
@@ -738,7 +844,7 @@ void ui_BluetoothSettings_screen_init(void)
     row_y += BT_SETTINGS_SECTION_HEIGHT;
     bt_settings_add_toggle_row(bt_settings_content, row_y, LV_SYMBOL_WIFI,
                                BT_SETTINGS_AMBER, BT_SETTINGS_AMBER_ICON_BG,
-                               "PAN network", "Off · use only for an active request", 0U,
+                               "PAN network", "Off - use only for an active request", 0U,
                                bt_settings_pan_event, &bt_pan_detail, &bt_pan_switch);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_REFRESH,
@@ -800,6 +906,10 @@ void ui_BluetoothSettings_screen_destroy(void)
     bt_phone_badge = NULL;
     bt_find_phone_detail = NULL;
     bt_find_phone_badge = NULL;
+    bt_weather_detail = NULL;
+    bt_weather_badge = NULL;
+    bt_location_detail = NULL;
+    bt_location_badge = NULL;
     bt_pan_detail = NULL;
     bt_pan_badge = NULL;
     bt_pan_switch = NULL;

@@ -12,6 +12,7 @@
 #include "lv_ex_data.h"
 #include "ui/generated/ui.h"
 #include "services/rtc.h"
+#include "services/phone_sync.h"
 #include "drivers/rgb.h"
 #include "drivers/adc.h"
 #include "services/battery_ui.h"
@@ -63,6 +64,7 @@ int main(void)
     power_manager_startup_feedback();
     rtc_config();
     set_date_time();
+    phone_sync_init();
     rgb_led_config();
     rgb_led_set_color(0x000000);
 

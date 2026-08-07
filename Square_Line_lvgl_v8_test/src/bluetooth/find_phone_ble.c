@@ -20,10 +20,14 @@
 
 #include "drivers/vibrator.h"
 #include "services/activity_tracker.h"
+#include "services/phone_sync.h"
 #include "find_phone_ble.h"
 
 #define HSP_UUID_LEN                         (16U)
 #define HSP_PACKET_LEN                       (2U)
+#define HSP_SYNC_TIME_PACKET_LEN             (7U)
+#define HSP_SYNC_LOCATION_PACKET_LEN         (11U)
+#define HSP_SYNC_WEATHER_PACKET_LEN          (13U)
 #define HSP_STATUS_PACKET_HEADER_LEN         (4U)
 #define HSP_STATUS_PACKET_ACTIVITY_LEN       (10U)
 #define HSP_STATUS_PACKET_MAX_LEN            (20U)
@@ -45,6 +49,12 @@
 /* Commands written by Android to the watch CONTROL characteristic. */
 #define HSP_WATCH_FIND_START                 (0x11U)
 #define HSP_WATCH_FIND_STOP                  (0x12U)
+
+/* Packets written by Android to the SYNC characteristic. */
+#define HSP_SYNC_TIME                         (0x21U)
+#define HSP_SYNC_LOCATION                     (0x22U)
+#define HSP_SYNC_WEATHER                      (0x23U)
+#define HSP_SYNC_CITY                         (0x24U)
 
 #define HSP_ADV_INTERVAL                     (0x00A0U) /* 100 ms */
 #define HSP_VIBRATION_PERCENT                (85U)
@@ -68,6 +78,11 @@
     0x6A, 0x4F, 0x5C, 0x8D, 0x02, 0x50, 0x6A, 0x2D \
 }
 
+#define HSP_SYNC_UUID { \
+    0x00, 0x10, 0x7A, 0x9E, 0x0C, 0x1C, 0xB2, 0xA9, \
+    0x6A, 0x4F, 0x5C, 0x8D, 0x03, 0x50, 0x6A, 0x2D \
+}
+
 #define HSP_DEVICE_STATUS_UUID { \
     0x00, 0x10, 0x7A, 0x9E, 0x0C, 0x1C, 0xB2, 0xA9, \
     0x6A, 0x4F, 0x5C, 0x8D, 0x04, 0x50, 0x6A, 0x2D \
@@ -83,6 +98,8 @@ enum hsp_att_index
     HSP_ATT_STATE_CHARACTERISTIC,
     HSP_ATT_STATE_VALUE,
     HSP_ATT_STATE_CCCD,
+    HSP_ATT_SYNC_CHARACTERISTIC,
+    HSP_ATT_SYNC_VALUE,
     HSP_ATT_DEVICE_STATUS_CHARACTERISTIC,
     HSP_ATT_DEVICE_STATUS_VALUE,
     HSP_ATT_DEVICE_STATUS_CCCD,
@@ -140,6 +157,14 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
                                 BLE_GATT_PERM_READ_ENABLE |
                                 BLE_GATT_PERM_WRITE_REQ_ENABLE,
                                 BLE_GATT_VALUE_PERM_RI_ENABLE, 2),
+    BLE_GATT_CHAR_DECLARE(HSP_ATT_SYNC_CHARACTERISTIC,
+                          SERIAL_UUID_16_CHARACTERISTIC,
+                          BLE_GATT_PERM_READ_ENABLE),
+    BLE_GATT_CHAR_VALUE_DECLARE(HSP_ATT_SYNC_VALUE, HSP_SYNC_UUID,
+                                BLE_GATT_PERM_WRITE_REQ_ENABLE |
+                                BLE_GATT_PERM_WRITE_COMMAND_ENABLE,
+                                BLE_GATT_VALUE_PERM_UUID_128,
+                                HSP_STATUS_PACKET_MAX_LEN),
     BLE_GATT_CHAR_DECLARE(HSP_ATT_DEVICE_STATUS_CHARACTERISTIC,
                           SERIAL_UUID_16_CHARACTERISTIC,
                           BLE_GATT_PERM_READ_ENABLE),
@@ -160,6 +185,89 @@ SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 
 static void hsp_send_phone_command(uint8_t command);
 static void hsp_send_device_status(void);
+
+static uint16_t hsp_read_u16_le(const uint8_t *value)
+{
+    return (uint16_t)value[0] | ((uint16_t)value[1] << 8U);
+}
+
+static uint32_t hsp_read_u32_le(const uint8_t *value)
+{
+    return (uint32_t)value[0] | ((uint32_t)value[1] << 8U) |
+           ((uint32_t)value[2] << 16U) | ((uint32_t)value[3] << 24U);
+}
+
+static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
+{
+    rt_err_t result;
+
+    if (value == RT_NULL || length == 0U)
+        return 1U;
+
+    switch (value[0])
+    {
+    case HSP_SYNC_TIME:
+        if (length != HSP_SYNC_TIME_PACKET_LEN)
+            return 1U;
+        result = phone_sync_set_time(hsp_read_u32_le(&value[1]),
+                                     (int16_t)hsp_read_u16_le(&value[5]));
+        if (result != RT_EOK)
+        {
+            LOG_W("HSP rejected phone time sync: %d", result);
+            return 1U;
+        }
+        LOG_I("HSP phone time and timezone synchronized");
+        break;
+
+    case HSP_SYNC_LOCATION:
+        if (length != HSP_SYNC_LOCATION_PACKET_LEN)
+            return 1U;
+        result = phone_sync_set_location((int32_t)hsp_read_u32_le(&value[1]),
+                                         (int32_t)hsp_read_u32_le(&value[5]),
+                                         hsp_read_u16_le(&value[9]), 0U);
+        if (result != RT_EOK)
+        {
+            LOG_W("HSP rejected phone location sync: %d", result);
+            return 1U;
+        }
+        LOG_I("HSP phone location synchronized");
+        break;
+
+    case HSP_SYNC_WEATHER:
+        if (length != HSP_SYNC_WEATHER_PACKET_LEN)
+            return 1U;
+        result = phone_sync_set_weather(value[1],
+                                        (int16_t)hsp_read_u16_le(&value[2]),
+                                        (int16_t)hsp_read_u16_le(&value[4]),
+                                        (int16_t)hsp_read_u16_le(&value[6]),
+                                        value[8], hsp_read_u32_le(&value[9]));
+        if (result != RT_EOK)
+        {
+            LOG_W("HSP rejected phone weather sync: %d", result);
+            return 1U;
+        }
+        LOG_I("HSP phone weather synchronized");
+        break;
+
+    case HSP_SYNC_CITY:
+        if (length < 2U || length > HSP_STATUS_PACKET_MAX_LEN)
+            return 1U;
+        result = phone_sync_set_city(&value[1], (uint8_t)(length - 1U));
+        if (result != RT_EOK)
+        {
+            LOG_W("HSP rejected phone city sync: %d", result);
+            return 1U;
+        }
+        LOG_I("HSP phone city synchronized");
+        break;
+
+    default:
+        LOG_W("HSP unknown phone sync packet: %u", value[0]);
+        return 1U;
+    }
+
+    return 0U;
+}
 
 /*
  * Packet: schema, flags, battery percent (or 0xFF), version length, version,
@@ -384,6 +492,9 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
             return 1U;
         }
         break;
+
+    case HSP_ATT_SYNC_VALUE:
+        return hsp_apply_sync_packet(parameter->value, parameter->len);
 
     case HSP_ATT_STATE_CCCD:
         if (parameter->len < 1U || parameter->value == RT_NULL)

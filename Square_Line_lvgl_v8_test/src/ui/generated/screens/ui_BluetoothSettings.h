@@ -14,6 +14,7 @@ extern lv_obj_t *ui_BluetoothSettings;
 void ui_BluetoothSettings_screen_init(void);
 void ui_BluetoothSettings_screen_destroy(void);
 void ui_BluetoothSettings_open_from_controls(void);
+void ui_BluetoothSettings_open_from_details(void);
 void ui_BluetoothSettings_refresh(void);
 
 #ifdef __cplusplus
