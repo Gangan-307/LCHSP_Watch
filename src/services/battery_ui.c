@@ -9,6 +9,7 @@
 #include "drivers/display_power.h"
 #include "services/power_manager.h"
 #include "bluetooth/battery_ble.h"
+#include "bluetooth/find_phone_ble.h"
 #include "battery_calculator.h"
 #include "battery_ui.h"
 
@@ -193,6 +194,11 @@ static void battery_service_sample(void)
 
     if (battery_percent_valid)
         battery_ble_publish_level((uint8_t)battery_percent);
+
+    find_phone_ble_publish_device_status(
+        battery_percent_valid ? (uint8_t)battery_percent : 0U,
+        battery_percent_valid ? 1U : 0U,
+        external_power ? 1U : 0U);
 }
 
 static void battery_sample_thread_entry(void *parameter)

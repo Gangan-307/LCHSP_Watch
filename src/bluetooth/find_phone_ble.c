@@ -23,7 +23,17 @@
 
 #define HSP_UUID_LEN                         (16U)
 #define HSP_PACKET_LEN                       (2U)
+#define HSP_STATUS_PACKET_HEADER_LEN         (4U)
+#define HSP_STATUS_PACKET_MAX_LEN            (20U)
 #define HSP_INVALID_CONN_IDX                 (0xFFU)
+
+#define HSP_STATUS_PROTOCOL_VERSION          (1U)
+#define HSP_STATUS_UNKNOWN_BATTERY_PERCENT   (0xFFU)
+
+#define HSP_STATUS_FLAG_BLE_ENABLED          (1U << 0U)
+#define HSP_STATUS_FLAG_COMPANION_CONNECTED  (1U << 1U)
+#define HSP_STATUS_FLAG_BATTERY_VALID        (1U << 2U)
+#define HSP_STATUS_FLAG_CHARGING             (1U << 3U)
 
 /* Commands sent by the watch to the Android application's STATE notify. */
 #define HSP_PHONE_FIND_START                 (0x01U)
@@ -55,6 +65,11 @@
     0x6A, 0x4F, 0x5C, 0x8D, 0x02, 0x50, 0x6A, 0x2D \
 }
 
+#define HSP_DEVICE_STATUS_UUID { \
+    0x00, 0x10, 0x7A, 0x9E, 0x0C, 0x1C, 0xB2, 0xA9, \
+    0x6A, 0x4F, 0x5C, 0x8D, 0x04, 0x50, 0x6A, 0x2D \
+}
+
 static uint8_t hsp_service_uuid[HSP_UUID_LEN] = HSP_SERVICE_UUID;
 
 enum hsp_att_index
@@ -65,6 +80,9 @@ enum hsp_att_index
     HSP_ATT_STATE_CHARACTERISTIC,
     HSP_ATT_STATE_VALUE,
     HSP_ATT_STATE_CCCD,
+    HSP_ATT_DEVICE_STATUS_CHARACTERISTIC,
+    HSP_ATT_DEVICE_STATUS_VALUE,
+    HSP_ATT_DEVICE_STATUS_CCCD,
     HSP_ATT_COUNT,
 };
 
@@ -75,9 +93,15 @@ typedef struct
     uint8_t advertising_ready;
     uint8_t requested;
     uint8_t state_subscribed;
+    uint8_t device_status_subscribed;
     uint8_t conn_idx;
     uint8_t sequence;
+    uint8_t battery_percent;
+    uint8_t battery_valid;
+    uint8_t charging;
     uint8_t state_packet[HSP_PACKET_LEN];
+    uint8_t device_status_packet[HSP_STATUS_PACKET_MAX_LEN];
+    uint8_t device_status_len;
     sibles_hdl service_handle;
     rt_timer_t pending_notify_timer;
 } hsp_find_phone_env_t;
@@ -113,11 +137,56 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
                                 BLE_GATT_PERM_READ_ENABLE |
                                 BLE_GATT_PERM_WRITE_REQ_ENABLE,
                                 BLE_GATT_VALUE_PERM_RI_ENABLE, 2),
+    BLE_GATT_CHAR_DECLARE(HSP_ATT_DEVICE_STATUS_CHARACTERISTIC,
+                          SERIAL_UUID_16_CHARACTERISTIC,
+                          BLE_GATT_PERM_READ_ENABLE),
+    BLE_GATT_CHAR_VALUE_DECLARE(HSP_ATT_DEVICE_STATUS_VALUE, HSP_DEVICE_STATUS_UUID,
+                                BLE_GATT_PERM_READ_ENABLE |
+                                BLE_GATT_PERM_NOTIFY_ENABLE,
+                                BLE_GATT_VALUE_PERM_UUID_128 |
+                                BLE_GATT_VALUE_PERM_RI_ENABLE,
+                                HSP_STATUS_PACKET_MAX_LEN),
+    BLE_GATT_DESCRIPTOR_DECLARE(HSP_ATT_DEVICE_STATUS_CCCD,
+                                SERIAL_UUID_16_CLIENT_CHAR_CFG,
+                                BLE_GATT_PERM_READ_ENABLE |
+                                BLE_GATT_PERM_WRITE_REQ_ENABLE,
+                                BLE_GATT_VALUE_PERM_RI_ENABLE, 2),
 };
 
 SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 
 static void hsp_send_phone_command(uint8_t command);
+static void hsp_send_device_status(void);
+
+/* Packet: schema, flags, battery percent (or 0xFF), version length, version. */
+static void hsp_build_device_status_packet(void)
+{
+    const char *firmware_version = HSP_WATCH_FIRMWARE_VERSION;
+    uint8_t version_len = (uint8_t)strlen(firmware_version);
+    uint8_t flags = 0U;
+
+    if (version_len > HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN)
+        version_len = HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN;
+
+    if (g_hsp_find_phone.stack_ready)
+        flags |= HSP_STATUS_FLAG_BLE_ENABLED;
+    if (g_hsp_find_phone.conn_idx != HSP_INVALID_CONN_IDX)
+        flags |= HSP_STATUS_FLAG_COMPANION_CONNECTED;
+    if (g_hsp_find_phone.battery_valid)
+        flags |= HSP_STATUS_FLAG_BATTERY_VALID;
+    if (g_hsp_find_phone.charging)
+        flags |= HSP_STATUS_FLAG_CHARGING;
+
+    g_hsp_find_phone.device_status_packet[0] = HSP_STATUS_PROTOCOL_VERSION;
+    g_hsp_find_phone.device_status_packet[1] = flags;
+    g_hsp_find_phone.device_status_packet[2] =
+        g_hsp_find_phone.battery_valid ? g_hsp_find_phone.battery_percent :
+                                          HSP_STATUS_UNKNOWN_BATTERY_PERCENT;
+    g_hsp_find_phone.device_status_packet[3] = version_len;
+    memcpy(&g_hsp_find_phone.device_status_packet[HSP_STATUS_PACKET_HEADER_LEN],
+           firmware_version, version_len);
+    g_hsp_find_phone.device_status_len = HSP_STATUS_PACKET_HEADER_LEN + version_len;
+}
 
 static void hsp_pending_notify_timeout(void *parameter)
 {
@@ -238,6 +307,12 @@ static uint8_t *hsp_gatts_get_callback(uint8_t conn_idx, uint8_t index,
         *length = HSP_PACKET_LEN;
         return g_hsp_find_phone.state_packet;
     }
+    if (index == HSP_ATT_DEVICE_STATUS_VALUE)
+    {
+        hsp_build_device_status_packet();
+        *length = g_hsp_find_phone.device_status_len;
+        return g_hsp_find_phone.device_status_packet;
+    }
 
     return RT_NULL;
 }
@@ -284,6 +359,20 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
             hsp_schedule_pending_notify();
         break;
 
+    case HSP_ATT_DEVICE_STATUS_CCCD:
+        if (parameter->len < 1U || parameter->value == RT_NULL)
+            return 1U;
+
+        g_hsp_find_phone.conn_idx = conn_idx;
+        g_hsp_find_phone.device_status_subscribed =
+            parameter->value[0] != 0U ? 1U : 0U;
+        LOG_I("HSP device status notification %s on conn %u",
+              g_hsp_find_phone.device_status_subscribed ? "enabled" : "disabled",
+              conn_idx);
+        if (g_hsp_find_phone.device_status_subscribed)
+            hsp_send_device_status();
+        break;
+
     default:
         return 1U;
     }
@@ -315,6 +404,29 @@ static void hsp_send_phone_command(uint8_t command)
     result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
     if (result != HSP_PACKET_LEN)
         LOG_W("HSP companion notification failed: %d", result);
+}
+
+static void hsp_send_device_status(void)
+{
+    sibles_value_t value;
+    int result;
+
+    if (!g_hsp_find_phone.service_ready ||
+        !g_hsp_find_phone.device_status_subscribed ||
+        g_hsp_find_phone.conn_idx == HSP_INVALID_CONN_IDX)
+    {
+        return;
+    }
+
+    hsp_build_device_status_packet();
+    memset(&value, 0, sizeof(value));
+    value.hdl = g_hsp_find_phone.service_handle;
+    value.idx = HSP_ATT_DEVICE_STATUS_VALUE;
+    value.len = g_hsp_find_phone.device_status_len;
+    value.value = g_hsp_find_phone.device_status_packet;
+    result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
+    if (result != g_hsp_find_phone.device_status_len)
+        LOG_W("HSP device status notification failed: %d", result);
 }
 
 static void hsp_register_service(void)
@@ -354,6 +466,7 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
         {
             g_hsp_find_phone.conn_idx = connection->conn_idx;
             g_hsp_find_phone.state_subscribed = 0U;
+            g_hsp_find_phone.device_status_subscribed = 0U;
             LOG_I("HSP companion BLE peer connected: %u", connection->conn_idx);
         }
         break;
@@ -368,6 +481,7 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
         {
             g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
             g_hsp_find_phone.state_subscribed = 0U;
+            g_hsp_find_phone.device_status_subscribed = 0U;
             LOG_I("HSP companion BLE peer disconnected: %u", disconnected->reason);
         }
         break;
@@ -401,10 +515,31 @@ void find_phone_ble_stop(void)
     hsp_send_phone_command(HSP_PHONE_FIND_STOP);
 }
 
+void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,
+                                          uint8_t charging)
+{
+    uint8_t changed;
+
+    if (percent > 100U)
+        percent = 100U;
+    battery_valid = battery_valid ? 1U : 0U;
+    charging = charging ? 1U : 0U;
+    changed = g_hsp_find_phone.battery_percent != percent ||
+              g_hsp_find_phone.battery_valid != battery_valid ||
+              g_hsp_find_phone.charging != charging;
+
+    g_hsp_find_phone.battery_percent = percent;
+    g_hsp_find_phone.battery_valid = battery_valid;
+    g_hsp_find_phone.charging = charging;
+    if (changed)
+        hsp_send_device_status();
+}
+
 void find_phone_ble_close(void)
 {
     g_hsp_find_phone.requested = 0U;
     g_hsp_find_phone.state_subscribed = 0U;
+    g_hsp_find_phone.device_status_subscribed = 0U;
     g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
 
     if (g_hsp_find_phone.advertising_ready)
