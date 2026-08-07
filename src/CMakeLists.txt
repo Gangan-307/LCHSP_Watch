@@ -5,6 +5,7 @@ set(SOURCES
     drivers/rgb.c
     drivers/vibrator.c
     services/battery_ui.c
+    services/phone_sync.c
     services/input_wake.c
     services/power_manager.c
     services/rtc.c
@@ -14,6 +15,8 @@ set(SOURCES
     bluetooth/find_phone_ble.c
     bluetooth/music_app.c
     bluetooth/pan.c
+    ui/details/ui_WeatherDetails.c
+    ui/details/ui_MapDetails.c
     ui/music/music_ui.c
     ui/generated/ui.c
     ui/generated/home_gestures.c
@@ -36,5 +39,6 @@ target_include_directories(ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/drivers
     ${CMAKE_CURRENT_SOURCE_DIR}/services
     ${CMAKE_CURRENT_SOURCE_DIR}/bluetooth
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/details
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/music
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/generated)

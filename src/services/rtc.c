@@ -232,19 +232,21 @@ void get_date_time(void)
 }
 
 /**
-  * @brief  根据传入的 Unix 时间戳同步硬件 RTC（内部自动处理东八区北京时间）
-  * @param  stamp UTC 时间戳
-  * @retval RT_EOK 成功，RT_ERROR 失败
-  */
-rt_err_t set_rtc_time_by_timestamp(time_t stamp)
+ * @brief  根据传入的 Unix 时间戳和 UTC 偏移同步硬件 RTC
+ * @param  stamp UTC 时间戳
+ * @param  timezone_offset_minutes 本地 UTC 偏移，单位分钟
+ * @retval RT_EOK 成功，RT_ERROR 失败
+ */
+rt_err_t set_rtc_time_by_timestamp_with_offset(time_t stamp,
+                                                int16_t timezone_offset_minutes)
 {
     RTC_TimeTypeDef RTC_TimeStruct = {0};
     RTC_DateTypeDef RTC_DateStruct = {0};
     struct tm *p_tm;
 
-    // 1. 转换为北京时间（东八区：+8 小时）
-    time_t bj_stamp = stamp + (8 * 3600);
-    p_tm = gmtime(&bj_stamp); // 使用 gmtime 解析可避开本地时区配置问题
+    // Convert UTC to the phone's current local time without relying on libc TZ data.
+    time_t local_stamp = stamp + ((time_t)timezone_offset_minutes * 60);
+    p_tm = gmtime(&local_stamp);
 
     if (p_tm == RT_NULL)
     {
@@ -276,8 +278,14 @@ rt_err_t set_rtc_time_by_timestamp(time_t stamp)
         return -RT_ERROR;
     }
 
-    rt_kprintf("Successfully synchronized network time to Hardware RTC!\n");
+    rt_kprintf("Successfully synchronized phone/network time to Hardware RTC!\n");
     rt_kprintf("RTC Sync Time: %s", asctime(p_tm));
 
     return RT_EOK;
+}
+
+/* PAN/NTP uses the historic UTC+8 default; the companion App supplies an offset. */
+rt_err_t set_rtc_time_by_timestamp(time_t stamp)
+{
+    return set_rtc_time_by_timestamp_with_offset(stamp, 8 * 60);
 }

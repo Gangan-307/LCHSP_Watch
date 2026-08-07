@@ -4,6 +4,7 @@ drivers/display_power.c
 drivers/rgb.c
 drivers/vibrator.c
 services/battery_ui.c
+services/phone_sync.c
 services/input_wake.c
 services/power_manager.c
 services/rtc.c
@@ -13,6 +14,8 @@ bluetooth/battery_ble.c
 bluetooth/find_phone_ble.c
 bluetooth/music_app.c
 bluetooth/pan.c
+ui/details/ui_WeatherDetails.c
+ui/details/ui_MapDetails.c
 ui/music/music_ui.c
 ui/generated/ui.c
 ui/generated/home_gestures.c
