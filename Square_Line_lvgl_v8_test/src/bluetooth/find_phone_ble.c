@@ -19,11 +19,13 @@
 #include "ulog.h"
 
 #include "drivers/vibrator.h"
+#include "services/activity_tracker.h"
 #include "find_phone_ble.h"
 
 #define HSP_UUID_LEN                         (16U)
 #define HSP_PACKET_LEN                       (2U)
 #define HSP_STATUS_PACKET_HEADER_LEN         (4U)
+#define HSP_STATUS_PACKET_ACTIVITY_LEN       (10U)
 #define HSP_STATUS_PACKET_MAX_LEN            (20U)
 #define HSP_INVALID_CONN_IDX                 (0xFFU)
 
@@ -34,6 +36,7 @@
 #define HSP_STATUS_FLAG_COMPANION_CONNECTED  (1U << 1U)
 #define HSP_STATUS_FLAG_BATTERY_VALID        (1U << 2U)
 #define HSP_STATUS_FLAG_CHARGING             (1U << 3U)
+#define HSP_STATUS_FLAG_ACTIVITY_VALID       (1U << 4U)
 
 /* Commands sent by the watch to the Android application's STATE notify. */
 #define HSP_PHONE_FIND_START                 (0x01U)
@@ -158,15 +161,26 @@ SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 static void hsp_send_phone_command(uint8_t command);
 static void hsp_send_device_status(void);
 
-/* Packet: schema, flags, battery percent (or 0xFF), version length, version. */
+/*
+ * Packet: schema, flags, battery percent (or 0xFF), version length, version,
+ * then optional activity data: steps u32 LE, kcal u16 LE, distance meters u32 LE.
+ */
 static void hsp_build_device_status_packet(void)
 {
+    activity_metrics_t activity_metrics;
     const char *firmware_version = HSP_WATCH_FIRMWARE_VERSION;
     uint8_t version_len = (uint8_t)strlen(firmware_version);
+    uint8_t activity_len = 0U;
+    uint8_t offset;
     uint8_t flags = 0U;
 
-    if (version_len > HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN)
-        version_len = HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN;
+    activity_tracker_get_metrics(&activity_metrics);
+    if (activity_metrics.valid)
+        activity_len = HSP_STATUS_PACKET_ACTIVITY_LEN;
+    if (version_len > HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN -
+                      activity_len)
+        version_len = HSP_STATUS_PACKET_MAX_LEN - HSP_STATUS_PACKET_HEADER_LEN -
+                      activity_len;
 
     if (g_hsp_find_phone.stack_ready)
         flags |= HSP_STATUS_FLAG_BLE_ENABLED;
@@ -176,6 +190,8 @@ static void hsp_build_device_status_packet(void)
         flags |= HSP_STATUS_FLAG_BATTERY_VALID;
     if (g_hsp_find_phone.charging)
         flags |= HSP_STATUS_FLAG_CHARGING;
+    if (activity_metrics.valid)
+        flags |= HSP_STATUS_FLAG_ACTIVITY_VALID;
 
     g_hsp_find_phone.device_status_packet[0] = HSP_STATUS_PROTOCOL_VERSION;
     g_hsp_find_phone.device_status_packet[1] = flags;
@@ -185,7 +201,31 @@ static void hsp_build_device_status_packet(void)
     g_hsp_find_phone.device_status_packet[3] = version_len;
     memcpy(&g_hsp_find_phone.device_status_packet[HSP_STATUS_PACKET_HEADER_LEN],
            firmware_version, version_len);
-    g_hsp_find_phone.device_status_len = HSP_STATUS_PACKET_HEADER_LEN + version_len;
+    offset = HSP_STATUS_PACKET_HEADER_LEN + version_len;
+    if (activity_metrics.valid)
+    {
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)(activity_metrics.steps & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.steps >> 8U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.steps >> 16U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.steps >> 24U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)(activity_metrics.calories_kcal & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.calories_kcal >> 8U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)(activity_metrics.distance_meters & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.distance_meters >> 8U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.distance_meters >> 16U) & 0xFFU);
+        g_hsp_find_phone.device_status_packet[offset++] =
+            (uint8_t)((activity_metrics.distance_meters >> 24U) & 0xFFU);
+    }
+    g_hsp_find_phone.device_status_len = offset;
 }
 
 static void hsp_pending_notify_timeout(void *parameter)
@@ -533,6 +573,11 @@ void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid
     g_hsp_find_phone.charging = charging;
     if (changed)
         hsp_send_device_status();
+}
+
+void find_phone_ble_publish_activity(void)
+{
+    hsp_send_device_status();
 }
 
 void find_phone_ble_close(void)
