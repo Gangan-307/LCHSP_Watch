@@ -19,6 +19,7 @@ set(SOURCES
     ui/details/ui_MapDetails.c
     ui/music/music_ui.c
     ui/generated/ui.c
+    ui/generated/hsp_font_cjk_22.c
     ui/generated/home_gestures.c
     ui/generated/ui_events.c
     ui/generated/ui_helpers.c

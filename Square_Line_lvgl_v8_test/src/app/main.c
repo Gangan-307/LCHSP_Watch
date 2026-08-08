@@ -13,6 +13,7 @@
 #include "ui/generated/ui.h"
 #include "services/rtc.h"
 #include "services/phone_sync.h"
+#include "services/phone_notifications.h"
 #include "drivers/rgb.h"
 #include "drivers/adc.h"
 #include "services/battery_ui.h"
@@ -65,6 +66,7 @@ int main(void)
     rtc_config();
     set_date_time();
     phone_sync_init();
+    phone_notifications_init();
     rgb_led_config();
     rgb_led_set_color(0x000000);
 

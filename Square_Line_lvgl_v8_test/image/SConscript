@@ -10,8 +10,10 @@ src = []
 cwd = GetCurrentDir()  # get current dir path
 objs_no_ezip = []
 objs_ezip = []
-objs_no_ezip += Glob('*.c')
-objs_ezip += Glob('ezip/*.c')
+objs_no_ezip += [node for node in Glob('*.c')
+                 if not os.path.basename(str(node)).endswith('.tmp.c')]
+objs_ezip += [node for node in Glob('ezip/*.c')
+              if not os.path.basename(str(node)).endswith('.tmp.c')]
 
 if 16 == GetConfigValue('LV_COLOR_DEPTH'):
     img_flags = '-rgb565'

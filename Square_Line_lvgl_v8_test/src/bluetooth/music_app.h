@@ -8,12 +8,17 @@ extern "C" {
 #endif
 
 #define MUSIC_APP_TEXT_MAX_LEN (128U)
+#define MUSIC_APP_LYRIC_MAX_LEN (192U)
+#define MUSIC_APP_PHONE_COVER_MAX_LEN (16U * 1024U)
 
 typedef struct
 {
     char title[MUSIC_APP_TEXT_MAX_LEN];
     char artist[MUSIC_APP_TEXT_MAX_LEN];
     char album[MUSIC_APP_TEXT_MAX_LEN];
+    char lyric[MUSIC_APP_LYRIC_MAX_LEN + 1U];
+    uint32_t metadata_generation;
+    uint32_t lyric_generation;
     uint32_t cover_generation;
     uint8_t connected;
     uint8_t playing;
@@ -26,6 +31,13 @@ void music_app_init(void);
 void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
                                uint8_t *data, uint16_t data_len);
 void music_app_get_snapshot(music_app_snapshot_t *snapshot);
+void music_app_set_lyric(const uint8_t *text, uint16_t length);
+int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
+                                uint32_t expected_crc32);
+int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
+                               const uint8_t *data, uint16_t length);
+void music_app_phone_cover_cancel(void);
+void music_app_reject_cover(uint32_t generation);
 void music_app_retry_cover_request(void);
 void music_app_previous(void);
 void music_app_toggle_playback(void);

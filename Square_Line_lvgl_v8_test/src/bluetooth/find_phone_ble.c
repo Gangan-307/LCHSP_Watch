@@ -19,12 +19,15 @@
 #include "ulog.h"
 
 #include "drivers/vibrator.h"
+#include "bluetooth/music_app.h"
 #include "services/activity_tracker.h"
+#include "services/phone_notifications.h"
 #include "services/phone_sync.h"
 #include "find_phone_ble.h"
 
 #define HSP_UUID_LEN                         (16U)
-#define HSP_PACKET_LEN                       (2U)
+#define HSP_COMMAND_PACKET_LEN               (2U)
+#define HSP_STATE_PACKET_MAX_LEN             (4U)
 #define HSP_SYNC_TIME_PACKET_LEN             (7U)
 #define HSP_SYNC_LOCATION_PACKET_LEN         (11U)
 #define HSP_SYNC_WEATHER_PACKET_LEN          (13U)
@@ -45,6 +48,8 @@
 /* Commands sent by the watch to the Android application's STATE notify. */
 #define HSP_PHONE_FIND_START                 (0x01U)
 #define HSP_PHONE_FIND_STOP                  (0x02U)
+#define HSP_PHONE_NOTIFICATION_CLEAR         (0x03U)
+#define HSP_PHONE_NOTIFICATION_DELETE        (0x04U)
 
 /* Commands written by Android to the watch CONTROL characteristic. */
 #define HSP_WATCH_FIND_START                 (0x11U)
@@ -55,10 +60,26 @@
 #define HSP_SYNC_LOCATION                     (0x22U)
 #define HSP_SYNC_WEATHER                      (0x23U)
 #define HSP_SYNC_CITY                         (0x24U)
+#define HSP_SYNC_NOTIFICATION_BEGIN           (0x31U)
+#define HSP_SYNC_NOTIFICATION_DATA            (0x32U)
+#define HSP_SYNC_LYRIC_BEGIN                  (0x41U)
+#define HSP_SYNC_LYRIC_DATA                   (0x42U)
+#define HSP_SYNC_COVER_BEGIN                  (0x43U)
+#define HSP_SYNC_COVER_DATA                   (0x44U)
+
+#define HSP_SYNC_NOTIFICATION_BEGIN_LEN       (10U)
+#define HSP_SYNC_NOTIFICATION_DATA_HEADER_LEN (5U)
+#define HSP_NOTIFICATION_PAYLOAD_MAX_LEN      \
+    (PHONE_NOTIFICATION_TITLE_MAX_BYTES + PHONE_NOTIFICATION_BODY_MAX_BYTES)
+#define HSP_SYNC_LYRIC_BEGIN_LEN              (5U)
+#define HSP_SYNC_LYRIC_DATA_HEADER_LEN        (5U)
+#define HSP_SYNC_COVER_BEGIN_LEN              (11U)
+#define HSP_SYNC_COVER_DATA_HEADER_LEN        (7U)
 
 #define HSP_ADV_INTERVAL                     (0x00A0U) /* 100 ms */
 #define HSP_VIBRATION_PERCENT                (85U)
 #define HSP_VIBRATION_DURATION_MS            (1500U)
+#define HSP_PENDING_NOTIFICATION_DELETES     (16U)
 
 #define SERIAL_UUID_16(x) {((uint8_t)((x) & 0xFFU)), ((uint8_t)((x) >> 8U))}
 
@@ -90,6 +111,30 @@
 
 static uint8_t hsp_service_uuid[HSP_UUID_LEN] = HSP_SERVICE_UUID;
 
+typedef struct
+{
+    uint16_t id;
+    uint16_t title_len;
+    uint16_t body_len;
+    uint16_t received_len;
+    uint8_t app;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t payload[HSP_NOTIFICATION_PAYLOAD_MAX_LEN];
+} hsp_notification_reassembly_t;
+
+static hsp_notification_reassembly_t hsp_notification_reassembly;
+
+typedef struct
+{
+    uint16_t generation;
+    uint16_t expected_len;
+    uint16_t received_len;
+    uint8_t payload[MUSIC_APP_LYRIC_MAX_LEN];
+} hsp_lyric_reassembly_t;
+
+static hsp_lyric_reassembly_t hsp_lyric_reassembly;
+
 enum hsp_att_index
 {
     HSP_ATT_SERVICE,
@@ -119,7 +164,11 @@ typedef struct
     uint8_t battery_percent;
     uint8_t battery_valid;
     uint8_t charging;
-    uint8_t state_packet[HSP_PACKET_LEN];
+    uint8_t state_packet[HSP_STATE_PACKET_MAX_LEN];
+    uint8_t state_packet_len;
+    uint8_t notification_clear_pending;
+    uint8_t notification_delete_count;
+    uint16_t notification_delete_ids[HSP_PENDING_NOTIFICATION_DELETES];
     uint8_t device_status_packet[HSP_STATUS_PACKET_MAX_LEN];
     uint8_t device_status_len;
     sibles_hdl service_handle;
@@ -128,7 +177,8 @@ typedef struct
 
 static hsp_find_phone_env_t g_hsp_find_phone = {
     .conn_idx = HSP_INVALID_CONN_IDX,
-    .state_packet = {HSP_PHONE_FIND_STOP, 0U},
+    .state_packet = {HSP_PHONE_FIND_STOP, 0U, 0U, 0U},
+    .state_packet_len = HSP_COMMAND_PACKET_LEN,
 };
 
 BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
@@ -142,7 +192,7 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
                                 BLE_GATT_PERM_WRITE_REQ_ENABLE |
                                 BLE_GATT_PERM_WRITE_COMMAND_ENABLE,
                                 BLE_GATT_VALUE_PERM_UUID_128,
-                                HSP_PACKET_LEN),
+                                HSP_COMMAND_PACKET_LEN),
     BLE_GATT_CHAR_DECLARE(HSP_ATT_STATE_CHARACTERISTIC,
                           SERIAL_UUID_16_CHARACTERISTIC,
                           BLE_GATT_PERM_READ_ENABLE),
@@ -151,7 +201,7 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
                                 BLE_GATT_PERM_NOTIFY_ENABLE,
                                 BLE_GATT_VALUE_PERM_UUID_128 |
                                 BLE_GATT_VALUE_PERM_RI_ENABLE,
-                                HSP_PACKET_LEN),
+                                HSP_STATE_PACKET_MAX_LEN),
     BLE_GATT_DESCRIPTOR_DECLARE(HSP_ATT_STATE_CCCD,
                                 SERIAL_UUID_16_CLIENT_CHAR_CFG,
                                 BLE_GATT_PERM_READ_ENABLE |
@@ -185,6 +235,7 @@ SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 
 static void hsp_send_phone_command(uint8_t command);
 static void hsp_send_device_status(void);
+static void hsp_flush_notification_commands(void);
 
 static uint16_t hsp_read_u16_le(const uint8_t *value)
 {
@@ -195,6 +246,184 @@ static uint32_t hsp_read_u32_le(const uint8_t *value)
 {
     return (uint32_t)value[0] | ((uint32_t)value[1] << 8U) |
            ((uint32_t)value[2] << 16U) | ((uint32_t)value[3] << 24U);
+}
+
+static void hsp_reset_notification_reassembly(void)
+{
+    rt_memset(&hsp_notification_reassembly, 0,
+              sizeof(hsp_notification_reassembly));
+}
+
+static uint8_t hsp_apply_notification_begin(const uint8_t *value,
+                                            uint16_t length)
+{
+    uint16_t title_len;
+    uint16_t body_len;
+    uint16_t total_len;
+    rt_err_t result;
+
+    if (length != HSP_SYNC_NOTIFICATION_BEGIN_LEN)
+        return 1U;
+
+    title_len = hsp_read_u16_le(&value[4]);
+    body_len = hsp_read_u16_le(&value[6]);
+    total_len = (uint16_t)title_len + body_len;
+    if (value[1] < PHONE_NOTIFICATION_APP_SMS ||
+        value[1] > PHONE_NOTIFICATION_APP_QQ ||
+        hsp_read_u16_le(&value[2]) == 0U ||
+        title_len > PHONE_NOTIFICATION_TITLE_MAX_BYTES ||
+        body_len > PHONE_NOTIFICATION_BODY_MAX_BYTES ||
+        total_len > HSP_NOTIFICATION_PAYLOAD_MAX_LEN)
+        return 1U;
+
+    hsp_reset_notification_reassembly();
+    hsp_notification_reassembly.id = hsp_read_u16_le(&value[2]);
+    hsp_notification_reassembly.app = value[1];
+    hsp_notification_reassembly.title_len = title_len;
+    hsp_notification_reassembly.body_len = body_len;
+    hsp_notification_reassembly.hour = value[8];
+    hsp_notification_reassembly.minute = value[9];
+    if (hsp_notification_reassembly.hour > 23U ||
+        hsp_notification_reassembly.minute > 59U)
+    {
+        hsp_reset_notification_reassembly();
+        return 1U;
+    }
+
+    if (total_len != 0U)
+        return 0U;
+
+    result = phone_notifications_upsert(hsp_notification_reassembly.id,
+                                        hsp_notification_reassembly.app,
+                                        hsp_notification_reassembly.hour,
+                                        hsp_notification_reassembly.minute,
+                                        RT_NULL, 0U, RT_NULL, 0U);
+    hsp_reset_notification_reassembly();
+    return result == RT_EOK ? 0U : 1U;
+}
+
+static uint8_t hsp_apply_notification_data(const uint8_t *value,
+                                           uint16_t length)
+{
+    uint16_t id;
+    uint16_t offset;
+    uint8_t payload_len;
+    uint16_t total_len;
+    rt_err_t result;
+
+    if (length <= HSP_SYNC_NOTIFICATION_DATA_HEADER_LEN)
+        return 1U;
+
+    id = hsp_read_u16_le(&value[1]);
+    offset = hsp_read_u16_le(&value[3]);
+    payload_len = (uint8_t)(length - HSP_SYNC_NOTIFICATION_DATA_HEADER_LEN);
+    total_len = (uint16_t)hsp_notification_reassembly.title_len +
+                hsp_notification_reassembly.body_len;
+    if (id == 0U || id != hsp_notification_reassembly.id ||
+        offset != hsp_notification_reassembly.received_len ||
+        (uint16_t)offset + payload_len > total_len)
+    {
+        hsp_reset_notification_reassembly();
+        return 1U;
+    }
+
+    rt_memcpy(&hsp_notification_reassembly.payload[offset], &value[5], payload_len);
+    hsp_notification_reassembly.received_len += payload_len;
+    if (hsp_notification_reassembly.received_len != total_len)
+        return 0U;
+
+    result = phone_notifications_upsert(
+        hsp_notification_reassembly.id, hsp_notification_reassembly.app,
+        hsp_notification_reassembly.hour,
+        hsp_notification_reassembly.minute,
+        hsp_notification_reassembly.payload,
+        hsp_notification_reassembly.title_len,
+        &hsp_notification_reassembly.payload[hsp_notification_reassembly.title_len],
+        hsp_notification_reassembly.body_len);
+    if (result != RT_EOK)
+        LOG_W("HSP rejected phone notification: %d", result);
+    else
+        LOG_I("HSP phone notification synchronized: app %u",
+              hsp_notification_reassembly.app);
+    hsp_reset_notification_reassembly();
+    return result == RT_EOK ? 0U : 1U;
+}
+
+static void hsp_reset_lyric_reassembly(void)
+{
+    rt_memset(&hsp_lyric_reassembly, 0, sizeof(hsp_lyric_reassembly));
+}
+
+static uint8_t hsp_apply_lyric_begin(const uint8_t *value, uint16_t length)
+{
+    uint16_t generation;
+    uint16_t lyric_len;
+
+    if (length != HSP_SYNC_LYRIC_BEGIN_LEN)
+        return 1U;
+    generation = hsp_read_u16_le(&value[1]);
+    lyric_len = hsp_read_u16_le(&value[3]);
+    if (generation == 0U || lyric_len > MUSIC_APP_LYRIC_MAX_LEN)
+        return 1U;
+
+    hsp_reset_lyric_reassembly();
+    hsp_lyric_reassembly.generation = generation;
+    hsp_lyric_reassembly.expected_len = lyric_len;
+    if (lyric_len == 0U)
+    {
+        music_app_set_lyric(RT_NULL, 0U);
+        hsp_reset_lyric_reassembly();
+    }
+    return 0U;
+}
+
+static uint8_t hsp_apply_lyric_data(const uint8_t *value, uint16_t length)
+{
+    uint16_t generation;
+    uint16_t offset;
+    uint16_t payload_len;
+
+    if (length <= HSP_SYNC_LYRIC_DATA_HEADER_LEN)
+        return 1U;
+    generation = hsp_read_u16_le(&value[1]);
+    offset = hsp_read_u16_le(&value[3]);
+    payload_len = length - HSP_SYNC_LYRIC_DATA_HEADER_LEN;
+    if (generation == 0U || generation != hsp_lyric_reassembly.generation ||
+        offset != hsp_lyric_reassembly.received_len ||
+        offset + payload_len > hsp_lyric_reassembly.expected_len)
+    {
+        hsp_reset_lyric_reassembly();
+        return 1U;
+    }
+
+    rt_memcpy(&hsp_lyric_reassembly.payload[offset], &value[5], payload_len);
+    hsp_lyric_reassembly.received_len += payload_len;
+    if (hsp_lyric_reassembly.received_len == hsp_lyric_reassembly.expected_len)
+    {
+        music_app_set_lyric(hsp_lyric_reassembly.payload,
+                            hsp_lyric_reassembly.expected_len);
+        hsp_reset_lyric_reassembly();
+    }
+    return 0U;
+}
+
+static uint8_t hsp_apply_cover_begin(const uint8_t *value, uint16_t length)
+{
+    if (length != HSP_SYNC_COVER_BEGIN_LEN)
+        return 1U;
+    return music_app_phone_cover_begin(hsp_read_u16_le(&value[1]),
+                                       hsp_read_u32_le(&value[3]),
+                                       hsp_read_u32_le(&value[7])) == 0 ? 0U : 1U;
+}
+
+static uint8_t hsp_apply_cover_data(const uint8_t *value, uint16_t length)
+{
+    if (length <= HSP_SYNC_COVER_DATA_HEADER_LEN)
+        return 1U;
+    return music_app_phone_cover_data(
+               hsp_read_u16_le(&value[1]), hsp_read_u32_le(&value[3]),
+               &value[HSP_SYNC_COVER_DATA_HEADER_LEN],
+               length - HSP_SYNC_COVER_DATA_HEADER_LEN) == 0 ? 0U : 1U;
 }
 
 static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
@@ -260,6 +489,24 @@ static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
         }
         LOG_I("HSP phone city synchronized");
         break;
+
+    case HSP_SYNC_NOTIFICATION_BEGIN:
+        return hsp_apply_notification_begin(value, length);
+
+    case HSP_SYNC_NOTIFICATION_DATA:
+        return hsp_apply_notification_data(value, length);
+
+    case HSP_SYNC_LYRIC_BEGIN:
+        return hsp_apply_lyric_begin(value, length);
+
+    case HSP_SYNC_LYRIC_DATA:
+        return hsp_apply_lyric_data(value, length);
+
+    case HSP_SYNC_COVER_BEGIN:
+        return hsp_apply_cover_begin(value, length);
+
+    case HSP_SYNC_COVER_DATA:
+        return hsp_apply_cover_data(value, length);
 
     default:
         LOG_W("HSP unknown phone sync packet: %u", value[0]);
@@ -452,7 +699,7 @@ static uint8_t *hsp_gatts_get_callback(uint8_t conn_idx, uint8_t index,
     *length = 0U;
     if (index == HSP_ATT_STATE_VALUE)
     {
-        *length = HSP_PACKET_LEN;
+        *length = g_hsp_find_phone.state_packet_len;
         return g_hsp_find_phone.state_packet;
     }
     if (index == HSP_ATT_DEVICE_STATUS_VALUE)
@@ -508,6 +755,8 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
               conn_idx);
         if (g_hsp_find_phone.state_subscribed && g_hsp_find_phone.requested)
             hsp_schedule_pending_notify();
+        if (g_hsp_find_phone.state_subscribed)
+            hsp_flush_notification_commands();
         break;
 
     case HSP_ATT_DEVICE_STATUS_CCCD:
@@ -538,6 +787,7 @@ static void hsp_send_phone_command(uint8_t command)
 
     g_hsp_find_phone.state_packet[0] = command;
     g_hsp_find_phone.state_packet[1] = ++g_hsp_find_phone.sequence;
+    g_hsp_find_phone.state_packet_len = HSP_COMMAND_PACKET_LEN;
 
     if (!g_hsp_find_phone.service_ready ||
         !g_hsp_find_phone.state_subscribed ||
@@ -550,11 +800,93 @@ static void hsp_send_phone_command(uint8_t command)
     memset(&value, 0, sizeof(value));
     value.hdl = g_hsp_find_phone.service_handle;
     value.idx = HSP_ATT_STATE_VALUE;
-    value.len = HSP_PACKET_LEN;
+    value.len = g_hsp_find_phone.state_packet_len;
     value.value = g_hsp_find_phone.state_packet;
     result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
-    if (result != HSP_PACKET_LEN)
+    if (result != g_hsp_find_phone.state_packet_len)
         LOG_W("HSP companion notification failed: %d", result);
+}
+
+static uint8_t hsp_send_notification_command(uint8_t command, uint16_t id)
+{
+    sibles_value_t value;
+    int result;
+
+    g_hsp_find_phone.state_packet[0] = command;
+    g_hsp_find_phone.state_packet[1] = ++g_hsp_find_phone.sequence;
+    g_hsp_find_phone.state_packet_len = HSP_COMMAND_PACKET_LEN;
+    if (command == HSP_PHONE_NOTIFICATION_DELETE)
+    {
+        g_hsp_find_phone.state_packet[2] = (uint8_t)(id & 0xFFU);
+        g_hsp_find_phone.state_packet[3] = (uint8_t)(id >> 8U);
+        g_hsp_find_phone.state_packet_len = HSP_STATE_PACKET_MAX_LEN;
+    }
+
+    if (!g_hsp_find_phone.service_ready ||
+        !g_hsp_find_phone.state_subscribed ||
+        g_hsp_find_phone.conn_idx == HSP_INVALID_CONN_IDX)
+    {
+        LOG_W("HSP notification delete was local only; Android is disconnected");
+        return 0U;
+    }
+
+    memset(&value, 0, sizeof(value));
+    value.hdl = g_hsp_find_phone.service_handle;
+    value.idx = HSP_ATT_STATE_VALUE;
+    value.len = g_hsp_find_phone.state_packet_len;
+    value.value = g_hsp_find_phone.state_packet;
+    result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
+    if (result != g_hsp_find_phone.state_packet_len)
+    {
+        LOG_W("HSP notification delete sync failed: %d", result);
+        return 0U;
+    }
+
+    return 1U;
+}
+
+static void hsp_queue_notification_delete(uint16_t id)
+{
+    uint8_t index;
+
+    if (g_hsp_find_phone.notification_clear_pending)
+        return;
+    for (index = 0U; index < g_hsp_find_phone.notification_delete_count; index++)
+    {
+        if (g_hsp_find_phone.notification_delete_ids[index] == id)
+            return;
+    }
+    if (g_hsp_find_phone.notification_delete_count >=
+        HSP_PENDING_NOTIFICATION_DELETES)
+    {
+        LOG_W("HSP notification delete queue is full");
+        return;
+    }
+
+    g_hsp_find_phone.notification_delete_ids[
+        g_hsp_find_phone.notification_delete_count++] = id;
+}
+
+static void hsp_flush_notification_commands(void)
+{
+    uint8_t index;
+    uint8_t remaining = 0U;
+
+    if (g_hsp_find_phone.notification_clear_pending)
+    {
+        if (hsp_send_notification_command(HSP_PHONE_NOTIFICATION_CLEAR, 0U))
+            g_hsp_find_phone.notification_clear_pending = 0U;
+        return;
+    }
+
+    for (index = 0U; index < g_hsp_find_phone.notification_delete_count; index++)
+    {
+        uint16_t id = g_hsp_find_phone.notification_delete_ids[index];
+
+        if (!hsp_send_notification_command(HSP_PHONE_NOTIFICATION_DELETE, id))
+            g_hsp_find_phone.notification_delete_ids[remaining++] = id;
+    }
+    g_hsp_find_phone.notification_delete_count = remaining;
 }
 
 static void hsp_send_device_status(void)
@@ -618,6 +950,7 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
             g_hsp_find_phone.conn_idx = connection->conn_idx;
             g_hsp_find_phone.state_subscribed = 0U;
             g_hsp_find_phone.device_status_subscribed = 0U;
+            hsp_reset_notification_reassembly();
             LOG_I("HSP companion BLE peer connected: %u", connection->conn_idx);
         }
         break;
@@ -633,6 +966,7 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
             g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
             g_hsp_find_phone.state_subscribed = 0U;
             g_hsp_find_phone.device_status_subscribed = 0U;
+            hsp_reset_notification_reassembly();
             LOG_I("HSP companion BLE peer disconnected: %u", disconnected->reason);
         }
         break;
@@ -691,12 +1025,35 @@ void find_phone_ble_publish_activity(void)
     hsp_send_device_status();
 }
 
+void find_phone_ble_delete_notification(uint16_t id)
+{
+    if (id == 0U)
+        return;
+
+    if (!hsp_send_notification_command(HSP_PHONE_NOTIFICATION_DELETE, id))
+        hsp_queue_notification_delete(id);
+}
+
+void find_phone_ble_clear_notifications(void)
+{
+    g_hsp_find_phone.notification_delete_count = 0U;
+    if (hsp_send_notification_command(HSP_PHONE_NOTIFICATION_CLEAR, 0U))
+    {
+        g_hsp_find_phone.notification_clear_pending = 0U;
+        return;
+    }
+    g_hsp_find_phone.notification_clear_pending = 1U;
+}
+
 void find_phone_ble_close(void)
 {
     g_hsp_find_phone.requested = 0U;
     g_hsp_find_phone.state_subscribed = 0U;
     g_hsp_find_phone.device_status_subscribed = 0U;
     g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
+    hsp_reset_notification_reassembly();
+    hsp_reset_lyric_reassembly();
+    music_app_phone_cover_cancel();
 
     if (g_hsp_find_phone.advertising_ready)
         (void)sibles_advertising_stop(g_hsp_find_phone_advertising);
