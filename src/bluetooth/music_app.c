@@ -13,6 +13,8 @@
 #endif
 
 #define MUSIC_COVER_FILE "cover.jpg"
+#define MUSIC_PHONE_COVER_TEMP_FILE "cvphone.tmp"
+#define MUSIC_COVER_BACKUP_FILE "cvbak.jpg"
 #define MUSIC_COVER_RETRY_MS (800U)
 #define MUSIC_COVER_RETRY_MAX (10U)
 #define MUSIC_VOLUME_ECHO_HISTORY_SIZE (4U)
@@ -45,6 +47,12 @@ static music_app_state_t music_state;
 static struct rt_mutex music_state_lock;
 static FILE *cover_file;
 static uint32_t cover_received_bytes;
+static FILE *phone_cover_file;
+static uint16_t phone_cover_generation;
+static uint32_t phone_cover_expected_bytes;
+static uint32_t phone_cover_received_bytes;
+static uint32_t phone_cover_expected_crc32;
+static uint32_t phone_cover_crc32;
 #ifndef AUDIO_USING_MANAGER
 static uint8_t speaker_muted;
 #endif
@@ -367,6 +375,12 @@ static int music_song_changed(const bt_notify_avrcp_music_detail_info_t *detail)
     rt_strncpy(music_state.snapshot.title, title, MUSIC_APP_TEXT_MAX_LEN);
     rt_strncpy(music_state.snapshot.artist, artist, MUSIC_APP_TEXT_MAX_LEN);
     rt_strncpy(music_state.snapshot.album, album, MUSIC_APP_TEXT_MAX_LEN);
+    if (changed)
+    {
+        music_state.snapshot.metadata_generation++;
+        music_state.snapshot.lyric[0] = '\0';
+        music_state.snapshot.lyric_generation++;
+    }
     rt_mutex_release(&music_state_lock);
 
     return changed;
@@ -476,6 +490,158 @@ void music_app_init(void)
     rt_mutex_init(&music_state_lock, "music", RT_IPC_FLAG_PRIO);
 }
 
+void music_app_set_lyric(const uint8_t *text, uint16_t length)
+{
+    if (text == RT_NULL)
+        length = 0U;
+    if (length > MUSIC_APP_LYRIC_MAX_LEN)
+    {
+        length = MUSIC_APP_LYRIC_MAX_LEN;
+        while (length > 0U && (text[length] & 0xC0U) == 0x80U)
+            length--;
+    }
+
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    if (strlen(music_state.snapshot.lyric) != length ||
+        (length != 0U && memcmp(music_state.snapshot.lyric, text, length) != 0))
+    {
+        if (length != 0U)
+            rt_memcpy(music_state.snapshot.lyric, text, length);
+        music_state.snapshot.lyric[length] = '\0';
+        music_state.snapshot.lyric_generation++;
+    }
+    rt_mutex_release(&music_state_lock);
+}
+
+static uint32_t music_cover_crc32_update(uint32_t crc, const uint8_t *data,
+                                         uint16_t length)
+{
+    uint16_t index;
+
+    for (index = 0U; index < length; index++)
+    {
+        uint8_t bit;
+
+        crc ^= data[index];
+        for (bit = 0U; bit < 8U; bit++)
+            crc = (crc >> 1U) ^ ((crc & 1U) ? 0xEDB88320UL : 0U);
+    }
+    return crc;
+}
+
+void music_app_phone_cover_cancel(void)
+{
+    if (phone_cover_file != RT_NULL)
+    {
+        fclose(phone_cover_file);
+        phone_cover_file = RT_NULL;
+    }
+    (void)remove(MUSIC_PHONE_COVER_TEMP_FILE);
+    phone_cover_generation = 0U;
+    phone_cover_expected_bytes = 0U;
+    phone_cover_received_bytes = 0U;
+    phone_cover_expected_crc32 = 0U;
+    phone_cover_crc32 = 0xFFFFFFFFUL;
+}
+
+int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
+                                uint32_t expected_crc32)
+{
+    if (generation == 0U || total_length < 4U ||
+        total_length > MUSIC_APP_PHONE_COVER_MAX_LEN)
+        return -1;
+
+    music_app_phone_cover_cancel();
+    phone_cover_file = fopen(MUSIC_PHONE_COVER_TEMP_FILE, "wb");
+    if (phone_cover_file == RT_NULL)
+    {
+        rt_kprintf("music: cannot open phone cover temporary file\n");
+        return -1;
+    }
+
+    phone_cover_generation = generation;
+    phone_cover_expected_bytes = total_length;
+    phone_cover_expected_crc32 = expected_crc32;
+    phone_cover_crc32 = 0xFFFFFFFFUL;
+    rt_kprintf("music: receiving phone cover, %u bytes\n", total_length);
+    return 0;
+}
+
+static int music_app_phone_cover_finish(void)
+{
+    uint32_t actual_crc32;
+    int had_previous_cover;
+
+    if (phone_cover_file == RT_NULL)
+        return -1;
+    fclose(phone_cover_file);
+    phone_cover_file = RT_NULL;
+    actual_crc32 = phone_cover_crc32 ^ 0xFFFFFFFFUL;
+    if (phone_cover_received_bytes != phone_cover_expected_bytes ||
+        actual_crc32 != phone_cover_expected_crc32)
+    {
+        rt_kprintf("music: rejected phone cover (%u/%u bytes, crc %08x/%08x)\n",
+                   phone_cover_received_bytes, phone_cover_expected_bytes,
+                   actual_crc32, phone_cover_expected_crc32);
+        music_app_phone_cover_cancel();
+        return -1;
+    }
+
+    (void)remove(MUSIC_COVER_BACKUP_FILE);
+    had_previous_cover = rename(MUSIC_COVER_FILE, MUSIC_COVER_BACKUP_FILE) == 0;
+    if (rename(MUSIC_PHONE_COVER_TEMP_FILE, MUSIC_COVER_FILE) != 0)
+    {
+        if (had_previous_cover)
+            (void)rename(MUSIC_COVER_BACKUP_FILE, MUSIC_COVER_FILE);
+        music_app_phone_cover_cancel();
+        rt_kprintf("music: cannot install phone cover\n");
+        return -1;
+    }
+    if (had_previous_cover)
+        (void)remove(MUSIC_COVER_BACKUP_FILE);
+
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    music_state.snapshot.cover_generation++;
+    music_state.snapshot.cover_available = 1U;
+    rt_mutex_release(&music_state_lock);
+    rt_kprintf("music: phone cover saved, %u bytes\n",
+               phone_cover_received_bytes);
+
+    phone_cover_generation = 0U;
+    phone_cover_expected_bytes = 0U;
+    phone_cover_received_bytes = 0U;
+    phone_cover_expected_crc32 = 0U;
+    phone_cover_crc32 = 0xFFFFFFFFUL;
+    return 0;
+}
+
+int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
+                               const uint8_t *data, uint16_t length)
+{
+    size_t written;
+
+    if (phone_cover_file == RT_NULL || data == RT_NULL || length == 0U ||
+        generation != phone_cover_generation ||
+        offset != phone_cover_received_bytes ||
+        offset + length > phone_cover_expected_bytes)
+    {
+        music_app_phone_cover_cancel();
+        return -1;
+    }
+
+    written = fwrite(data, sizeof(uint8_t), length, phone_cover_file);
+    if (written != length)
+    {
+        music_app_phone_cover_cancel();
+        return -1;
+    }
+    phone_cover_crc32 = music_cover_crc32_update(phone_cover_crc32, data, length);
+    phone_cover_received_bytes += length;
+    if (phone_cover_received_bytes == phone_cover_expected_bytes)
+        return music_app_phone_cover_finish();
+    return 0;
+}
+
 void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
                                uint8_t *data, uint16_t data_len)
 {
@@ -541,6 +707,7 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
         if (detail != NULL && music_song_changed(&detail->detail_info))
         {
             music_discard_cover_file();
+            music_app_phone_cover_cancel();
             music_clear_cover();
             rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
             music_state.cover_request_attempts = 0;
@@ -643,6 +810,14 @@ void music_app_get_snapshot(music_app_snapshot_t *snapshot)
 
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
     *snapshot = music_state.snapshot;
+    rt_mutex_release(&music_state_lock);
+}
+
+void music_app_reject_cover(uint32_t generation)
+{
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    if (music_state.snapshot.cover_generation == generation)
+        music_state.snapshot.cover_available = 0U;
     rt_mutex_release(&music_state_lock);
 }
 
