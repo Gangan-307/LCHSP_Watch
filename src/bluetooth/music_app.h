@@ -9,7 +9,7 @@ extern "C" {
 
 #define MUSIC_APP_TEXT_MAX_LEN (128U)
 #define MUSIC_APP_LYRIC_MAX_LEN (192U)
-#define MUSIC_APP_PHONE_COVER_MAX_LEN (16U * 1024U)
+#define MUSIC_APP_PHONE_COVER_MAX_LEN (8U * 1024U)
 
 typedef struct
 {
@@ -37,6 +37,8 @@ int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
 int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
                                const uint8_t *data, uint16_t length);
 void music_app_phone_cover_cancel(void);
+/* Prefer the companion application's checked cover stream while it is ready. */
+void music_app_set_companion_connected(int connected);
 void music_app_reject_cover(uint32_t generation);
 void music_app_retry_cover_request(void);
 void music_app_previous(void);

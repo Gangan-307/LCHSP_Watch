@@ -750,6 +750,7 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
         g_hsp_find_phone.conn_idx = conn_idx;
         g_hsp_find_phone.state_subscribed =
             parameter->value[0] != 0U ? 1U : 0U;
+        music_app_set_companion_connected(g_hsp_find_phone.state_subscribed);
         LOG_I("HSP companion state notification %s on conn %u",
               g_hsp_find_phone.state_subscribed ? "enabled" : "disabled",
               conn_idx);
@@ -967,6 +968,8 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
             g_hsp_find_phone.state_subscribed = 0U;
             g_hsp_find_phone.device_status_subscribed = 0U;
             hsp_reset_notification_reassembly();
+            hsp_reset_lyric_reassembly();
+            music_app_set_companion_connected(0);
             LOG_I("HSP companion BLE peer disconnected: %u", disconnected->reason);
         }
         break;
@@ -1053,7 +1056,7 @@ void find_phone_ble_close(void)
     g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
     hsp_reset_notification_reassembly();
     hsp_reset_lyric_reassembly();
-    music_app_phone_cover_cancel();
+    music_app_set_companion_connected(0);
 
     if (g_hsp_find_phone.advertising_ready)
         (void)sibles_advertising_stop(g_hsp_find_phone_advertising);

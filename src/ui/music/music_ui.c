@@ -12,6 +12,7 @@
 
 #define MUSIC_COVER_PATH "/cover.jpg"
 #define MUSIC_COVER_SIZE (128)
+#define MUSIC_COVER_DECODE_RETRY_MAX (6U)
 
 lv_obj_t *ui_ScreenMusic;
 static lv_obj_t *music_cover;
@@ -25,6 +26,7 @@ static lv_obj_t *music_volume;
 static lv_obj_t *music_volume_bar;
 static uint32_t displayed_cover_generation;
 static uint32_t failed_cover_generation;
+static uint8_t failed_cover_attempts;
 static uint32_t displayed_metadata_generation;
 static uint32_t displayed_lyric_generation;
 static music_app_snapshot_t music_ui_snapshot;
@@ -136,7 +138,6 @@ static lv_obj_t *music_ui_create_button(lv_obj_t *parent, const char *symbol,
 static void music_ui_refresh_cover(uint32_t generation)
 {
     lv_img_header_t header;
-    int zoom;
 
     if (generation == displayed_cover_generation)
         return;
@@ -148,22 +149,31 @@ static void music_ui_refresh_cover(uint32_t generation)
         if (failed_cover_generation != generation)
         {
             failed_cover_generation = generation;
-            rt_kprintf("music: LVGL cannot decode %s\n", MUSIC_COVER_PATH);
+            failed_cover_attempts = 0U;
         }
-        music_app_reject_cover(generation);
+        failed_cover_attempts++;
+        rt_kprintf("music: LVGL cover decode retry %u/%u\n",
+                   failed_cover_attempts, MUSIC_COVER_DECODE_RETRY_MAX);
+        if (failed_cover_attempts >= MUSIC_COVER_DECODE_RETRY_MAX)
+        {
+            rt_kprintf("music: LVGL cannot decode %s\n", MUSIC_COVER_PATH);
+            music_app_reject_cover(generation);
+        }
         return;
     }
 
-    zoom = (MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE) / header.w;
-    if ((MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE) / header.h < zoom)
-        zoom = (MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE) / header.h;
-    if (zoom <= 0)
-        return;
+    if (header.w != MUSIC_COVER_SIZE || header.h != MUSIC_COVER_SIZE)
+    {
+        rt_kprintf("music: cover is %ux%u; displaying without JPG zoom\n",
+                   header.w, header.h);
+    }
 
     displayed_cover_generation = generation;
     failed_cover_generation = 0;
+    failed_cover_attempts = 0U;
     lv_img_set_src(music_cover, MUSIC_COVER_PATH);
-    lv_img_set_zoom(music_cover, zoom);
+    /* Normal JPG is decoded line-by-line; transformations can render black. */
+    lv_img_set_zoom(music_cover, LV_IMG_ZOOM_NONE);
     lv_obj_clear_flag(music_cover, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(music_cover_placeholder, LV_OBJ_FLAG_HIDDEN);
 }
@@ -248,10 +258,13 @@ void ui_ScreenMusic_screen_init(void)
     lv_obj_set_style_border_width(header, 0, LV_PART_MAIN);
 
     back_button = lv_btn_create(header);
+    lv_obj_remove_style_all(back_button);
     lv_obj_set_size(back_button, 42, 42);
     lv_obj_align(back_button, LV_ALIGN_LEFT_MID, 8, 0);
-    lv_obj_set_style_radius(back_button, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(back_button, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(back_button, 0, LV_PART_MAIN);
+    lv_obj_set_style_outline_width(back_button, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(back_button, 0, LV_PART_MAIN);
     lv_label_set_text(lv_label_create(back_button), LV_SYMBOL_LEFT);
     lv_obj_center(lv_obj_get_child(back_button, 0));
     lv_obj_add_event_cb(back_button, music_ui_back_event, LV_EVENT_CLICKED, NULL);
@@ -342,6 +355,7 @@ void ui_ScreenMusic_screen_init(void)
 
     displayed_cover_generation = 0;
     failed_cover_generation = 0;
+    failed_cover_attempts = 0U;
     displayed_metadata_generation = UINT32_MAX;
     displayed_lyric_generation = UINT32_MAX;
     displayed_connected = UINT8_MAX;

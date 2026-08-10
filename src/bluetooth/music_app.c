@@ -17,6 +17,7 @@
 #define MUSIC_COVER_BACKUP_FILE "cvbak.jpg"
 #define MUSIC_COVER_RETRY_MS (800U)
 #define MUSIC_COVER_RETRY_MAX (10U)
+#define MUSIC_PHONE_COVER_TIMEOUT_MS (8000U)
 #define MUSIC_VOLUME_ECHO_HISTORY_SIZE (4U)
 #define MUSIC_VOLUME_ECHO_WINDOW_MS (1500U)
 #define AVRCP_CHARSET_UTF8 (0x006AU)
@@ -37,6 +38,7 @@ typedef struct
     music_app_snapshot_t snapshot;
     bt_notify_device_mac_t remote_addr;
     uint8_t remote_addr_valid;
+    uint8_t companion_connected;
     uint8_t cover_request_attempts;
     rt_tick_t cover_next_request_tick;
     music_volume_echo_t volume_echoes[MUSIC_VOLUME_ECHO_HISTORY_SIZE];
@@ -53,6 +55,7 @@ static uint32_t phone_cover_expected_bytes;
 static uint32_t phone_cover_received_bytes;
 static uint32_t phone_cover_expected_crc32;
 static uint32_t phone_cover_crc32;
+static rt_tick_t phone_cover_deadline;
 #ifndef AUDIO_USING_MANAGER
 static uint8_t speaker_muted;
 #endif
@@ -462,7 +465,8 @@ static void music_request_cover(void)
     int request_cover = 0;
 
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
-    if (music_state.remote_addr_valid &&
+    if (!music_state.companion_connected &&
+        music_state.remote_addr_valid &&
         music_state.cover_request_attempts < MUSIC_COVER_RETRY_MAX)
     {
         remote_addr = music_state.remote_addr;
@@ -542,6 +546,39 @@ void music_app_phone_cover_cancel(void)
     phone_cover_received_bytes = 0U;
     phone_cover_expected_crc32 = 0U;
     phone_cover_crc32 = 0xFFFFFFFFUL;
+    phone_cover_deadline = 0U;
+}
+
+void music_app_set_companion_connected(int connected)
+{
+    uint8_t new_state = connected ? 1U : 0U;
+    int changed;
+
+    rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+    changed = music_state.companion_connected != new_state;
+    music_state.companion_connected = new_state;
+    if (changed)
+    {
+        music_state.cover_request_attempts = 0U;
+        music_state.cover_next_request_tick = 0U;
+    }
+    rt_mutex_release(&music_state_lock);
+
+    if (!new_state)
+        music_app_phone_cover_cancel();
+    if (!changed)
+        return;
+
+    if (new_state)
+    {
+        /* Never let a late native cover packet overwrite the App transfer. */
+        music_discard_cover_file();
+        rt_kprintf("music: companion cover channel active\n");
+    }
+    else
+    {
+        rt_kprintf("music: companion cover channel inactive, AVRCP fallback enabled\n");
+    }
 }
 
 int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
@@ -551,6 +588,8 @@ int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
         total_length > MUSIC_APP_PHONE_COVER_MAX_LEN)
         return -1;
 
+    /* The companion cover is authoritative while it is transferring. */
+    music_discard_cover_file();
     music_app_phone_cover_cancel();
     phone_cover_file = fopen(MUSIC_PHONE_COVER_TEMP_FILE, "wb");
     if (phone_cover_file == RT_NULL)
@@ -563,6 +602,8 @@ int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
     phone_cover_expected_bytes = total_length;
     phone_cover_expected_crc32 = expected_crc32;
     phone_cover_crc32 = 0xFFFFFFFFUL;
+    phone_cover_deadline = rt_tick_get() +
+        rt_tick_from_millisecond(MUSIC_PHONE_COVER_TIMEOUT_MS);
     rt_kprintf("music: receiving phone cover, %u bytes\n", total_length);
     return 0;
 }
@@ -612,6 +653,7 @@ static int music_app_phone_cover_finish(void)
     phone_cover_received_bytes = 0U;
     phone_cover_expected_crc32 = 0U;
     phone_cover_crc32 = 0xFFFFFFFFUL;
+    phone_cover_deadline = 0U;
     return 0;
 }
 
@@ -620,11 +662,26 @@ int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
 {
     size_t written;
 
-    if (phone_cover_file == RT_NULL || data == RT_NULL || length == 0U ||
-        generation != phone_cover_generation ||
+    if (phone_cover_file == RT_NULL)
+    {
+        rt_kprintf("music: cover data without BEGIN (gen %u, offset %u)\n",
+                   generation, offset);
+        return -1;
+    }
+    if (generation != phone_cover_generation)
+    {
+        /* A queued packet from the preceding song must not cancel the new one. */
+        rt_kprintf("music: ignored stale cover packet (gen %u, expected %u)\n",
+                   generation, phone_cover_generation);
+        return -1;
+    }
+    if (data == RT_NULL || length == 0U ||
         offset != phone_cover_received_bytes ||
         offset + length > phone_cover_expected_bytes)
     {
+        rt_kprintf("music: rejected cover packet (offset %u/%u, len %u, total %u)\n",
+                   offset, phone_cover_received_bytes, length,
+                   phone_cover_expected_bytes);
         music_app_phone_cover_cancel();
         return -1;
     }
@@ -637,6 +694,8 @@ int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
     }
     phone_cover_crc32 = music_cover_crc32_update(phone_cover_crc32, data, length);
     phone_cover_received_bytes += length;
+    phone_cover_deadline = rt_tick_get() +
+        rt_tick_from_millisecond(MUSIC_PHONE_COVER_TIMEOUT_MS);
     if (phone_cover_received_bytes == phone_cover_expected_bytes)
         return music_app_phone_cover_finish();
     return 0;
@@ -706,14 +765,21 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
 
         if (detail != NULL && music_song_changed(&detail->detail_info))
         {
+            int companion_connected;
+
             music_discard_cover_file();
-            music_app_phone_cover_cancel();
-            music_clear_cover();
             rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+            companion_connected = music_state.companion_connected;
             music_state.cover_request_attempts = 0;
             music_state.cover_next_request_tick = 0;
             rt_mutex_release(&music_state_lock);
-            music_request_cover();
+
+            if (!companion_connected)
+            {
+                music_app_phone_cover_cancel();
+                music_clear_cover();
+                music_request_cover();
+            }
         }
     }
     else if (event_id == BT_NOTIFY_AVRCP_PLAY_STATUS && data != NULL)
@@ -763,9 +829,19 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
     {
         BTS2S_AVRCPGET_COVER_ART_BEGIN_IND *packet =
             (BTS2S_AVRCPGET_COVER_ART_BEGIN_IND *)data;
+        int companion_connected;
 
         if (packet == NULL)
             return;
+
+        rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+        companion_connected = music_state.companion_connected;
+        rt_mutex_release(&music_state_lock);
+        if (companion_connected)
+        {
+            rt_kprintf("music: ignoring AVRCP cover while companion is active\n");
+            return;
+        }
 
         if (packet->total_length != 0)
             rt_kprintf("music: receiving cover, total %u bytes\n",
@@ -827,8 +903,17 @@ void music_app_retry_cover_request(void)
     int request_cover;
     rt_tick_t now = rt_tick_get();
 
+    if (phone_cover_file != RT_NULL &&
+        (rt_int32_t)(now - phone_cover_deadline) >= 0)
+    {
+        rt_kprintf("music: phone cover transfer timed out\n");
+        music_app_phone_cover_cancel();
+    }
+
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
     request_cover = !music_state.snapshot.cover_available &&
+                    phone_cover_file == RT_NULL &&
+                    !music_state.companion_connected &&
                     music_state.remote_addr_valid &&
                     music_state.cover_request_attempts < MUSIC_COVER_RETRY_MAX &&
                     (rt_int32_t)(now - music_state.cover_next_request_tick) >= 0;
