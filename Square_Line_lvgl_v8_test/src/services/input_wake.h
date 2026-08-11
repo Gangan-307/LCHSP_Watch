@@ -10,6 +10,7 @@ extern "C" {
 typedef void (*input_wake_key_press_cb_t)(uint32_t key_index);
 
 void input_wake_init(void);
+input_wake_key_press_cb_t input_wake_get_key_press_handler(void);
 void input_wake_set_key_press_handler(input_wake_key_press_cb_t callback);
 
 #ifdef __cplusplus

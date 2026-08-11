@@ -190,9 +190,8 @@ static void ui_home_handle_gesture(lv_event_t *e, int animation_time)
     switch (lv_indev_get_gesture_dir(indev))
     {
     case LV_DIR_LEFT:
-        lv_indev_wait_release(indev);
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT,
-                          animation_time, 0, &ui_Screen2_screen_init);
+        (void)animation_time;
+        ui_AppGrid_open();
         break;
     case LV_DIR_RIGHT:
         lv_indev_wait_release(indev);

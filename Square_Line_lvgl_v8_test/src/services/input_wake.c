@@ -118,6 +118,11 @@ void input_wake_init(void)
     lv_timer_create(input_wake_timer_cb, KEY_CHECK_PERIOD_MS, NULL);
 }
 
+input_wake_key_press_cb_t input_wake_get_key_press_handler(void)
+{
+    return key_press_handler;
+}
+
 void input_wake_set_key_press_handler(input_wake_key_press_cb_t callback)
 {
     key_press_handler = callback;

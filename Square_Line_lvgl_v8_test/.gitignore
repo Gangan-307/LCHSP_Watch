@@ -16,3 +16,4 @@ Kconfig.tmp
 # Local UI prototype and Android companion application are not published here.
 /design/
 /hsp/
+/watch/
