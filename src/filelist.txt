@@ -17,6 +17,7 @@ bluetooth/pan.c
 ui/details/ui_WeatherDetails.c
 ui/details/ui_MapDetails.c
 ui/music/music_ui.c
+ui/app_grid/app_grid_ui.c
 ui/generated/ui.c
 ui/generated/home_gestures.c
 ui/generated/ui_events.c

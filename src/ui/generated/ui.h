@@ -26,6 +26,7 @@ extern "C" {
 #include "screens/ui_Screen5.h"
 #include "screens/ui_BluetoothSettings.h"
 #include "music_ui.h"
+#include "ui/app_grid/app_grid_ui.h"
 #include "ui_WeatherDetails.h"
 #include "ui_MapDetails.h"
 

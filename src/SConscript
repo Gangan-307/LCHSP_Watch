@@ -2,6 +2,16 @@ import os
 from building import *
 
 cwd = GetCurrentDir()
+
+# gui_app_fwk includes lang_pack.h through lv_ext_resource_manager. The
+# directory must exist before SCons evaluates the generated include path.
+Execute(Mkdir('resource/strings'))
+language_resources = SConscript(
+    os.path.join(cwd, 'resource/strings/SConscript'),
+    variant_dir='resource/strings',
+    duplicate=0,
+)
+
 module_dirs = [
     'app',
     'drivers',
@@ -9,12 +19,14 @@ module_dirs = [
     'bluetooth',
     'ui/details',
     'ui/music',
+    'ui/app_grid',
     'ui/generated',
     'ui/generated/components',
     'ui/generated/screens',
 ]
 
 src = []
+src += language_resources
 for module_dir in module_dirs:
     src += Glob(os.path.join(module_dir, '*.c'))
 

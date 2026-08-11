@@ -18,6 +18,7 @@ set(SOURCES
     ui/details/ui_WeatherDetails.c
     ui/details/ui_MapDetails.c
     ui/music/music_ui.c
+    ui/app_grid/app_grid_ui.c
     ui/generated/ui.c
     ui/generated/hsp_font_cjk_22.c
     ui/generated/home_gestures.c
@@ -42,4 +43,5 @@ target_include_directories(ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/bluetooth
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/details
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/music
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/app_grid
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/generated)
