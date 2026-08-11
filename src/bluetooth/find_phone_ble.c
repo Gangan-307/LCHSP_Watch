@@ -34,6 +34,7 @@
 #define HSP_STATUS_PACKET_HEADER_LEN         (4U)
 #define HSP_STATUS_PACKET_ACTIVITY_LEN       (10U)
 #define HSP_STATUS_PACKET_MAX_LEN            (20U)
+#define HSP_SYNC_PACKET_MAX_LEN              (244U)
 #define HSP_INVALID_CONN_IDX                 (0xFFU)
 
 #define HSP_STATUS_PROTOCOL_VERSION          (1U)
@@ -214,7 +215,7 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
                                 BLE_GATT_PERM_WRITE_REQ_ENABLE |
                                 BLE_GATT_PERM_WRITE_COMMAND_ENABLE,
                                 BLE_GATT_VALUE_PERM_UUID_128,
-                                HSP_STATUS_PACKET_MAX_LEN),
+                                HSP_SYNC_PACKET_MAX_LEN),
     BLE_GATT_CHAR_DECLARE(HSP_ATT_DEVICE_STATUS_CHARACTERISTIC,
                           SERIAL_UUID_16_CHARACTERISTIC,
                           BLE_GATT_PERM_READ_ENABLE),
@@ -430,7 +431,7 @@ static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
 {
     rt_err_t result;
 
-    if (value == RT_NULL || length == 0U)
+    if (value == RT_NULL || length == 0U || length > HSP_SYNC_PACKET_MAX_LEN)
         return 1U;
 
     switch (value[0])
@@ -972,6 +973,16 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
             music_app_set_companion_connected(0);
             LOG_I("HSP companion BLE peer disconnected: %u", disconnected->reason);
         }
+        break;
+    }
+
+    case SIBLES_MTU_EXCHANGE_IND:
+    {
+        const sibles_mtu_exchange_ind_t *mtu =
+            (const sibles_mtu_exchange_ind_t *)data;
+
+        if (mtu != RT_NULL && mtu->conn_idx == g_hsp_find_phone.conn_idx)
+            LOG_I("HSP companion MTU negotiated: %u", mtu->mtu);
         break;
     }
 
