@@ -104,6 +104,7 @@ typedef struct
 /* The first ring exposes current watch features; later rings use demo artwork. */
 static const app_grid_app_desc_t app_grid_apps[] =
 {
+    {APP_GRID_APP_TIME, APP_GRID_IMAGE_WORLD_CLOCK},
     {APP_GRID_APP_MUSIC, APP_GRID_IMAGE_ITUNES},
     {APP_GRID_APP_ACTIVITY, APP_GRID_IMAGE_ACTIVITY},
     {APP_GRID_APP_MESSAGES, APP_GRID_IMAGE_MESSAGES},
@@ -136,6 +137,7 @@ static uint8_t app_grid_key_handler_active;
 static void app_grid_transform_icons(uint8_t force_refresh);
 static void app_grid_page_event(lv_event_t *event);
 static void app_grid_key_event(uint32_t key_index);
+static void app_grid_restore_key_handler(void);
 
 static const void *app_grid_image_get(app_grid_image_id_t image_id)
 {
@@ -439,7 +441,10 @@ static void app_grid_open_selected_icon(void)
     app = lv_obj_get_user_data(app_grid.pending_icon);
     app_grid.pending_icon = NULL;
     if (app != NULL && app_grid_open_handler != NULL)
-        app_grid_open_handler(app->id);
+    {
+        if (app_grid_open_handler(app->id))
+            app_grid_restore_key_handler();
+    }
 }
 
 static void app_grid_icon_event(lv_event_t *event)
@@ -620,12 +625,10 @@ static void app_grid_create_icons(lv_obj_t *page)
     for (index = 0U; index < APP_GRID_PLACEHOLDER_COUNT; index++)
     {
         uint16_t grid_index = (uint16_t)(index + app_count);
-        const app_grid_app_desc_t *app = &app_grid_apps[index % app_count];
-
         app_grid_index_to_cell(grid_index, &col, &row);
         app_grid_add_icon(page,
                           app_grid_image_get(app_grid_placeholder_images[index % filler_count]),
-                          app, row, col, 1U);
+                          NULL, row, col, 1U);
     }
 }
 
