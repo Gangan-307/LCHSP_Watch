@@ -20,6 +20,7 @@ module_dirs = [
     'ui/details',
     'ui/music',
     'ui/app_grid',
+    'ui/system',
     'ui/generated',
     'ui/generated/components',
     'ui/generated/screens',

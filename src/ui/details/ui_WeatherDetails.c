@@ -2,7 +2,7 @@
 
 #include "rtthread.h"
 #include "services/phone_sync.h"
-#include "ui/generated/screens/ui_BluetoothSettings.h"
+#include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/ui_helpers.h"
 
 #define WEATHER_BG              0x050608
@@ -352,17 +352,17 @@ static void weather_details_timer_cb(lv_timer_t *timer)
     ui_WeatherDetails_refresh();
 }
 
-static void weather_details_return(void)
+void ui_WeatherDetails_return(void)
 {
     weather_details_stop_timer();
     weather_details_wait_release();
-    ui_BluetoothSettings_open_from_details();
+    ui_AppGrid_open();
 }
 
 static void weather_details_back_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        weather_details_return();
+        ui_WeatherDetails_return();
 }
 
 static void weather_details_screen_event(lv_event_t *event)
@@ -374,7 +374,7 @@ static void weather_details_screen_event(lv_event_t *event)
 
     indev = lv_indev_get_act();
     if (indev != NULL && lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
-        weather_details_return();
+        ui_WeatherDetails_return();
 }
 
 static lv_obj_t *weather_details_create_metric(lv_obj_t *parent, lv_coord_t x,

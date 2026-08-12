@@ -682,7 +682,7 @@ static void home_gestures_light_event(lv_event_t *event)
     }
     else if (lv_event_get_code(event) == LV_EVENT_LONG_PRESSED)
     {
-        ui_Screen4_open_from_controls();
+        ui_RgbLight_open_from_controls();
     }
 }
 
@@ -1272,6 +1272,32 @@ void home_gestures_open_notifications(void)
 
     home_gestures_wait_release();
     lv_scr_load_anim(notifications_screen, LV_SCR_LOAD_ANIM_MOVE_TOP, 220, 0, false);
+}
+
+uint8_t home_gestures_handle_back(void)
+{
+    lv_obj_t *active_screen = lv_scr_act();
+
+    if (notification_detail_screen != NULL &&
+        active_screen == notification_detail_screen)
+    {
+        home_gestures_close_notification_detail();
+        return 1U;
+    }
+
+    if (notifications_screen != NULL && active_screen == notifications_screen)
+    {
+        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_BOTTOM);
+        return 1U;
+    }
+
+    if (controls_screen != NULL && active_screen == controls_screen)
+    {
+        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_TOP);
+        return 1U;
+    }
+
+    return 0U;
 }
 
 void home_gestures_refresh_controls_state(void)

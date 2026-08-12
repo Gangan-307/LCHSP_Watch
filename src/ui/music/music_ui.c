@@ -6,7 +6,7 @@
 #include <string.h>
 #include "ui/generated/ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
-#include "services/input_wake.h"
+#include "ui/app_grid/app_grid_ui.h"
 #include "bluetooth/music_app.h"
 #include "music_ui.h"
 
@@ -36,6 +36,49 @@ static uint8_t displayed_volume;
 static uint8_t displayed_cover_available;
 static lv_timer_t *music_ui_timer;
 
+typedef enum
+{
+    MUSIC_UI_SOURCE_HOME,
+    MUSIC_UI_SOURCE_APP_GRID,
+} music_ui_source_t;
+
+static music_ui_source_t music_ui_source = MUSIC_UI_SOURCE_HOME;
+
+static void music_ui_wait_release(void)
+{
+    lv_indev_t *indev = lv_indev_get_act();
+
+    if (indev != NULL)
+        lv_indev_wait_release(indev);
+}
+
+void ui_ScreenMusic_open_from_home(void)
+{
+    music_ui_source = MUSIC_UI_SOURCE_HOME;
+    music_ui_wait_release();
+    _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
+                      &ui_ScreenMusic_screen_init);
+}
+
+void ui_ScreenMusic_open_from_app_grid(void)
+{
+    music_ui_source = MUSIC_UI_SOURCE_APP_GRID;
+    music_ui_wait_release();
+    _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
+                      &ui_ScreenMusic_screen_init);
+}
+
+void ui_ScreenMusic_return(void)
+{
+    music_ui_wait_release();
+
+    if (music_ui_source == MUSIC_UI_SOURCE_APP_GRID)
+        ui_AppGrid_open();
+    else
+        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
+                          &ui_ScreenHome_screen_init);
+}
+
 static uint8_t music_ui_has_synced_lyric(const char *lyric)
 {
     if (lyric == NULL || lyric[0] == '\0')
@@ -61,8 +104,7 @@ static void music_ui_refresh_lyric(void)
 static void music_ui_back_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
-                          &ui_ScreenHome_screen_init);
+        ui_ScreenMusic_return();
 }
 
 static void music_ui_gesture_event(lv_event_t *event)
@@ -70,9 +112,7 @@ static void music_ui_gesture_event(lv_event_t *event)
     if (lv_event_get_code(event) == LV_EVENT_GESTURE &&
         lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_RIGHT)
     {
-        lv_indev_wait_release(lv_indev_get_act());
-        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
-                          &ui_ScreenHome_screen_init);
+        ui_ScreenMusic_return();
     }
 }
 
@@ -92,17 +132,6 @@ static void music_ui_next_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
         music_app_next();
-}
-
-static void music_ui_physical_key_event(uint32_t key_index)
-{
-    if (lv_scr_act() != ui_ScreenMusic)
-        return;
-
-    if (key_index == 0)
-        music_app_adjust_volume(1);
-    else if (key_index == 1)
-        music_app_adjust_volume(-1);
 }
 
 static lv_obj_t *music_ui_create_button(lv_obj_t *parent, const char *symbol,
@@ -365,7 +394,6 @@ void ui_ScreenMusic_screen_init(void)
     rt_memset(&music_ui_snapshot, 0, sizeof(music_ui_snapshot));
     music_ui_timer = lv_timer_create(music_ui_refresh_timer, 300, NULL);
     music_ui_refresh_timer(music_ui_timer);
-    input_wake_set_key_press_handler(music_ui_physical_key_event);
 }
 
 void ui_ScreenMusic_screen_destroy(void)
@@ -387,5 +415,4 @@ void ui_ScreenMusic_screen_destroy(void)
     music_play_button = NULL;
     music_volume = NULL;
     music_volume_bar = NULL;
-    input_wake_set_key_press_handler(NULL);
 }

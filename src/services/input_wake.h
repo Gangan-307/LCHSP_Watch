@@ -7,11 +7,23 @@
 extern "C" {
 #endif
 
-typedef void (*input_wake_key_press_cb_t)(uint32_t key_index);
+typedef enum
+{
+    INPUT_WAKE_KEY1 = 0,
+    INPUT_WAKE_KEY2 = 1,
+} input_wake_key_t;
+
+typedef enum
+{
+    INPUT_WAKE_EVENT_SHORT_PRESS,
+    INPUT_WAKE_EVENT_LONG_PRESS,
+} input_wake_event_t;
+
+typedef void (*input_wake_event_cb_t)(input_wake_key_t key,
+                                      input_wake_event_t event);
 
 void input_wake_init(void);
-input_wake_key_press_cb_t input_wake_get_key_press_handler(void);
-void input_wake_set_key_press_handler(input_wake_key_press_cb_t callback);
+void input_wake_set_event_handler(input_wake_event_cb_t callback);
 
 #ifdef __cplusplus
 }

@@ -15,7 +15,6 @@
 #include "cell_transform.h"
 #include "ui/generated/ui.h"
 #include "ui/generated/ui_helpers.h"
-#include "services/input_wake.h"
 #include "app_grid_ui.h"
 
 LV_IMG_DECLARE(img_bikestopwatch);
@@ -139,13 +138,9 @@ static const app_grid_app_desc_t app_grid_apps[] =
 lv_obj_t *ui_AppGrid;
 static app_grid_context_t app_grid;
 static app_grid_app_open_cb_t app_grid_open_handler;
-static input_wake_key_press_cb_t app_grid_previous_key_handler;
-static uint8_t app_grid_key_handler_active;
 
 static void app_grid_transform_icons(uint8_t force_refresh);
 static void app_grid_page_event(lv_event_t *event);
-static void app_grid_key_event(uint32_t key_index);
-static void app_grid_restore_key_handler(void);
 
 static const void *app_grid_image_get(app_grid_image_id_t image_id)
 {
@@ -454,8 +449,7 @@ static void app_grid_open_selected_icon(void)
     app_grid.pending_icon = NULL;
     if (app != NULL && app_grid_open_handler != NULL)
     {
-        if (app_grid_open_handler(app->id))
-            app_grid_restore_key_handler();
+        (void)app_grid_open_handler(app->id);
     }
 }
 
@@ -663,18 +657,7 @@ static void app_grid_initialize_pivots(void)
     }
 }
 
-static void app_grid_restore_key_handler(void)
-{
-    if (!app_grid_key_handler_active)
-        return;
-
-    if (input_wake_get_key_press_handler() == app_grid_key_event)
-        input_wake_set_key_press_handler(app_grid_previous_key_handler);
-    app_grid_previous_key_handler = NULL;
-    app_grid_key_handler_active = 0U;
-}
-
-static void app_grid_return_home(void)
+void ui_AppGrid_return_home(void)
 {
     if (app_grid.page != NULL)
         lv_anim_del(app_grid.page, NULL);
@@ -682,21 +665,8 @@ static void app_grid_return_home(void)
     app_grid.dragging = 0U;
     app_grid.scroll_sum.x = 0;
     app_grid.scroll_sum.y = 0;
-    app_grid_restore_key_handler();
     _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
                       &ui_ScreenHome_screen_init);
-}
-
-static void app_grid_key_event(uint32_t key_index)
-{
-    if (key_index == 0U && lv_scr_act() == ui_AppGrid)
-    {
-        app_grid_return_home();
-        return;
-    }
-
-    if (app_grid_previous_key_handler != NULL)
-        app_grid_previous_key_handler(key_index);
 }
 
 void ui_AppGrid_screen_init(void)
@@ -756,18 +726,11 @@ void ui_AppGrid_open(void)
     if (indev != NULL)
         lv_indev_wait_release(indev);
 
-    if (!app_grid_key_handler_active)
-    {
-        app_grid_previous_key_handler = input_wake_get_key_press_handler();
-        input_wake_set_key_press_handler(app_grid_key_event);
-        app_grid_key_handler_active = 1U;
-    }
     lv_scr_load_anim(ui_AppGrid, LV_SCR_LOAD_ANIM_MOVE_LEFT, 220, 0, false);
 }
 
 void ui_AppGrid_screen_destroy(void)
 {
-    app_grid_restore_key_handler();
     if (ui_AppGrid != NULL)
         lv_obj_del(ui_AppGrid);
     ui_AppGrid = NULL;

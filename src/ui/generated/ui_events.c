@@ -6,8 +6,9 @@
 #include "ui.h"
 #include "drivers/vibrator.h"
 #include "drivers/rgb.h"
-#include "services/power_manager.h"
+#include "ui/system/system_power_ui.h"
 #include "ui_helpers.h"
+#include "home_gestures.h"
 #include "lvgl.h"
 
 #define LED_COLOR_WHITE  (0x00FFFFFFU)
@@ -128,12 +129,6 @@ const char *led_get_effect_description(void)
     return led_effect_descriptions[led_effect];
 }
 
-static void led_update_toggle_label(lv_obj_t *label)
-{
-    if (label != NULL)
-        lv_label_set_text(label, led_is_on ? "LIGHT ON" : "LIGHT OFF");
-}
-
 static void led_write_color(uint8_t brightness_percent)
 {
     uint32_t red;
@@ -202,8 +197,8 @@ static void led_auto_off_timer_cb(lv_timer_t *timer)
         led_is_on = RT_FALSE;
         led_stop_effect_timer();
         rgb_led_set_color(0x000000U);
-        led_update_toggle_label(ui_Label3);
-        ui_Screen4_refresh_light_state();
+        ui_RgbLight_refresh_state();
+        home_gestures_refresh_controls_state();
     }
 }
 
@@ -269,7 +264,7 @@ static void delete_label_on_clean(lv_anim_t * a) {
 }
 
 // 这是您在 SLS 中绑定的点击事件函数
-void trigger_vibration(lv_event_t * e)
+void on_muyu_pressed(lv_event_t * e)
 {
     (void)e;
 
@@ -278,7 +273,7 @@ void trigger_vibration(lv_event_t * e)
 
     // 3. 同时创建“功德+1”飘字效果
     // 与木鱼图片使用同一父对象，保证定位和绘制层级正确
-    lv_obj_t * label = lv_label_create(ui_MainPanel3);
+    lv_obj_t * label = lv_label_create(ui_MuyuPanel);
     lv_label_set_text(label, "功德 +1");
     lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
 
@@ -298,7 +293,7 @@ void trigger_vibration(lv_event_t * e)
     lv_obj_set_style_shadow_spread(label, 1, LV_PART_MAIN);
     lv_obj_set_style_shadow_ofs_x(label, 3, LV_PART_MAIN);
     lv_obj_set_style_shadow_ofs_y(label, 4, LV_PART_MAIN);
-    
+
     // 在当前页面顶部固定位置显示，避免嵌套对象坐标导致文字跑出屏幕
     lv_obj_set_width(label, LV_SIZE_CONTENT);
     lv_obj_set_height(label, LV_SIZE_CONTENT);
@@ -336,7 +331,8 @@ void on_led_toggle(lv_event_t * e)
         led_is_on = RT_TRUE;
         led_restart_effect_timer();
         led_restart_auto_off_timer();
-        led_update_toggle_label(ui_Label3);
+        ui_RgbLight_refresh_state();
+        home_gestures_refresh_controls_state();
         vibrator_vibrate(65, 60);
     }
     else
@@ -345,7 +341,8 @@ void on_led_toggle(lv_event_t * e)
         led_stop_auto_off_timer();
         led_stop_effect_timer();
         rgb_led_set_color(0x000000);
-        led_update_toggle_label(ui_Label3);
+        ui_RgbLight_refresh_state();
+        home_gestures_refresh_controls_state();
         vibrator_vibrate(65, 60);
     }
 }
@@ -394,11 +391,6 @@ void on_rgb_brightness_changed(lv_event_t * e)
     led_apply_selected_color();
 }
 
-void update_led_toggle_label(lv_obj_t * label)
-{
-    led_update_toggle_label(label);
-}
-
 void on_power_slider_event(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
@@ -409,9 +401,9 @@ void on_power_slider_event(lv_event_t * e)
 
     if (lv_slider_get_value(slider) >= 95)
     {
-        lv_slider_set_value(slider, 100, LV_ANIM_OFF);
-        if (power_manager_shutdown() == RT_EOK)
-            return;
+        lv_slider_set_value(slider, 0, LV_ANIM_OFF);
+        system_power_ui_open();
+        return;
     }
 
     lv_slider_set_value(slider, 0, LV_ANIM_ON);

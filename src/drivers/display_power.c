@@ -18,6 +18,7 @@ static rt_device_t lcd_device;
 static lv_indev_t *touch_indev;
 static uint8_t saved_brightness = DISPLAY_DEFAULT_BRIGHTNESS;
 static int display_is_off;
+static uint8_t display_forced_off;
 static void (*touch_read_cb)(lv_indev_drv_t *drv, lv_indev_data_t *data);
 static uint8_t suppress_touch_until_release;
 
@@ -67,11 +68,11 @@ static void display_set_brightness(uint8_t brightness)
         rt_device_control(lcd_device, RTGRAPHIC_CTRL_SET_BRIGHTNESS, &brightness);
 }
 
-static void display_turn_off(void)
+static void display_turn_off(uint8_t forced)
 {
     uint8_t brightness = saved_brightness;
 
-    if (display_is_off)
+    if (lcd_device == NULL || display_is_off)
         return;
 
     if (touch_indev != NULL)
@@ -83,6 +84,7 @@ static void display_turn_off(void)
 
     display_set_brightness(0);
     display_is_off = 1;
+    display_forced_off = forced;
 }
 
 void display_power_notify_activity(void)
@@ -97,11 +99,17 @@ void display_power_notify_activity(void)
         display_set_brightness(saved_brightness);
         display_is_off = 0;
     }
+    display_forced_off = 0U;
 }
 
 void display_power_wake(void)
 {
     display_power_notify_activity();
+}
+
+void display_power_sleep(void)
+{
+    display_turn_off(1U);
 }
 
 int display_power_is_off(void)
@@ -135,12 +143,12 @@ static void display_power_timer_cb(lv_timer_t *timer)
     inactive_time = lv_disp_get_inactive_time(NULL);
     if (display_is_off)
     {
-        if (inactive_time < DISPLAY_IDLE_TIMEOUT_MS)
+        if (!display_forced_off && inactive_time < DISPLAY_IDLE_TIMEOUT_MS)
             display_power_wake();
     }
     else if (inactive_time >= DISPLAY_IDLE_TIMEOUT_MS)
     {
-        display_turn_off();
+        display_turn_off(0U);
     }
 }
 
