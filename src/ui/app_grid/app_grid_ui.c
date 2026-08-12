@@ -18,25 +18,29 @@
 #include "services/input_wake.h"
 #include "app_grid_ui.h"
 
+LV_IMG_DECLARE(img_bikestopwatch);
 LV_IMG_DECLARE(img_activity);
 LV_IMG_DECLARE(img_alarm);
-LV_IMG_DECLARE(img_alarm_2);
+LV_IMG_DECLARE(img_bluetooth);
+LV_IMG_DECLARE(img_calculator);
 LV_IMG_DECLARE(img_calendar);
 LV_IMG_DECLARE(img_camera);
-LV_IMG_DECLARE(img_itunes);
-LV_IMG_DECLARE(img_mail);
+LV_IMG_DECLARE(img_compass);
+LV_IMG_DECLARE(img_dringk);
+LV_IMG_DECLARE(img_ebook);
+LV_IMG_DECLARE(img_light);
 LV_IMG_DECLARE(img_maps);
-LV_IMG_DECLARE(img_messages);
-LV_IMG_DECLARE(img_passbook);
-LV_IMG_DECLARE(img_phone);
+LV_IMG_DECLARE(img_music);
+LV_IMG_DECLARE(img_muyu);
+LV_IMG_DECLARE(img_notebook);
 LV_IMG_DECLARE(img_photos);
-LV_IMG_DECLARE(img_remote);
+LV_IMG_DECLARE(img_record);
+LV_IMG_DECLARE(img_safe);
 LV_IMG_DECLARE(img_settings);
-LV_IMG_DECLARE(img_stocks);
-LV_IMG_DECLARE(img_workout);
+LV_IMG_DECLARE(img_sos);
+LV_IMG_DECLARE(img_tomato);
+LV_IMG_DECLARE(img_weather);
 LV_IMG_DECLARE(img_world_clock);
-LV_IMG_DECLARE(weather);
-LV_IMG_DECLARE(bluetooth);
 
 #define APP_GRID_ID                 "Main"
 #define APP_GRID_ROWS               16U
@@ -53,8 +57,6 @@ LV_IMG_DECLARE(bluetooth);
 #define APP_GRID_LIMIT_HEIGHT        (LV_VER_RES_MAX - 20)
 #define APP_GRID_LIMIT_RADIUS        (LV_VER_RES_MAX >> 1)
 #define APP_GRID_DRAG_LIMIT          8
-#define APP_GRID_PLACEHOLDER_COUNT   60U
-
 typedef struct
 {
     app_grid_app_id_t id;
@@ -63,25 +65,29 @@ typedef struct
 
 typedef enum
 {
+    APP_GRID_IMAGE_BIKE_STOPWATCH,
     APP_GRID_IMAGE_ACTIVITY,
     APP_GRID_IMAGE_ALARM,
-    APP_GRID_IMAGE_ALARM_2,
+    APP_GRID_IMAGE_BLUETOOTH,
+    APP_GRID_IMAGE_CALCULATOR,
     APP_GRID_IMAGE_CALENDAR,
     APP_GRID_IMAGE_CAMERA,
-    APP_GRID_IMAGE_ITUNES,
-    APP_GRID_IMAGE_MAIL,
+    APP_GRID_IMAGE_COMPASS,
+    APP_GRID_IMAGE_DRINK,
+    APP_GRID_IMAGE_EBOOK,
+    APP_GRID_IMAGE_LIGHT,
     APP_GRID_IMAGE_MAPS,
-    APP_GRID_IMAGE_MESSAGES,
-    APP_GRID_IMAGE_PASSBOOK,
-    APP_GRID_IMAGE_PHONE,
+    APP_GRID_IMAGE_MUSIC,
+    APP_GRID_IMAGE_MUYU,
+    APP_GRID_IMAGE_NOTEBOOK,
     APP_GRID_IMAGE_PHOTOS,
-    APP_GRID_IMAGE_REMOTE,
+    APP_GRID_IMAGE_RECORD,
+    APP_GRID_IMAGE_SAFE,
     APP_GRID_IMAGE_SETTINGS,
-    APP_GRID_IMAGE_STOCKS,
-    APP_GRID_IMAGE_WORKOUT,
-    APP_GRID_IMAGE_WORLD_CLOCK,
+    APP_GRID_IMAGE_SOS,
+    APP_GRID_IMAGE_TOMATO,
     APP_GRID_IMAGE_WEATHER,
-    APP_GRID_IMAGE_BLUETOOTH,
+    APP_GRID_IMAGE_WORLD_CLOCK,
 } app_grid_image_id_t;
 
 typedef struct
@@ -101,31 +107,33 @@ typedef struct
     uint8_t dragging;
 } app_grid_context_t;
 
-/* The first ring exposes current watch features; later rings use demo artwork. */
+/* Every entry corresponds to one PNG in image/app_grid. */
 static const app_grid_app_desc_t app_grid_apps[] =
 {
-    {APP_GRID_APP_TIME, APP_GRID_IMAGE_WORLD_CLOCK},
-    {APP_GRID_APP_MUSIC, APP_GRID_IMAGE_ITUNES},
-    {APP_GRID_APP_ACTIVITY, APP_GRID_IMAGE_ACTIVITY},
-    {APP_GRID_APP_MESSAGES, APP_GRID_IMAGE_MESSAGES},
+    {APP_GRID_APP_WORLD_CLOCK, APP_GRID_IMAGE_WORLD_CLOCK},
+    {APP_GRID_APP_MUSIC, APP_GRID_IMAGE_MUSIC},
+    {APP_GRID_APP_LIGHT, APP_GRID_IMAGE_LIGHT},
+    {APP_GRID_APP_BLUETOOTH, APP_GRID_IMAGE_BLUETOOTH},
     {APP_GRID_APP_WEATHER, APP_GRID_IMAGE_WEATHER},
     {APP_GRID_APP_MAP, APP_GRID_IMAGE_MAPS},
-    {APP_GRID_APP_LIGHT, APP_GRID_IMAGE_REMOTE},
-    {APP_GRID_APP_BLUETOOTH, APP_GRID_IMAGE_BLUETOOTH},
-    {APP_GRID_APP_BATTERY, APP_GRID_IMAGE_STOCKS},
+    {APP_GRID_APP_ACTIVITY, APP_GRID_IMAGE_ACTIVITY},
+    {APP_GRID_APP_MUYU, APP_GRID_IMAGE_MUYU},
     {APP_GRID_APP_SETTINGS, APP_GRID_IMAGE_SETTINGS},
-};
-
-/* This is the same filler pattern used by the source watch main menu. */
-static const uint8_t app_grid_placeholder_images[] =
-{
-    APP_GRID_IMAGE_PASSBOOK, APP_GRID_IMAGE_MAIL,
-    APP_GRID_IMAGE_CALENDAR, APP_GRID_IMAGE_CAMERA,
-    APP_GRID_IMAGE_PHONE, APP_GRID_IMAGE_ALARM_2,
-    APP_GRID_IMAGE_MAPS, APP_GRID_IMAGE_PHOTOS,
-    APP_GRID_IMAGE_REMOTE, APP_GRID_IMAGE_WORKOUT,
-    APP_GRID_IMAGE_WORLD_CLOCK, APP_GRID_IMAGE_STOCKS,
-    APP_GRID_IMAGE_ALARM, APP_GRID_IMAGE_STOCKS,
+    {APP_GRID_APP_CALENDAR, APP_GRID_IMAGE_CALENDAR},
+    {APP_GRID_APP_EBOOK, APP_GRID_IMAGE_EBOOK},
+    {APP_GRID_APP_TOMATO, APP_GRID_IMAGE_TOMATO},
+    {APP_GRID_APP_BIKE_STOPWATCH, APP_GRID_IMAGE_BIKE_STOPWATCH},
+    {APP_GRID_APP_ALARM, APP_GRID_IMAGE_ALARM},
+    {APP_GRID_APP_CALCULATOR, APP_GRID_IMAGE_CALCULATOR},
+    {APP_GRID_APP_COMPASS, APP_GRID_IMAGE_COMPASS},
+    {APP_GRID_APP_DRINK, APP_GRID_IMAGE_DRINK},
+    {APP_GRID_APP_CAMERA, APP_GRID_IMAGE_CAMERA},
+    {APP_GRID_APP_NOTEBOOK, APP_GRID_IMAGE_NOTEBOOK},
+    {APP_GRID_APP_PHOTOS, APP_GRID_IMAGE_PHOTOS},
+    {APP_GRID_APP_RECORD, APP_GRID_IMAGE_RECORD},
+    {APP_GRID_APP_SAFE, APP_GRID_IMAGE_SAFE},
+    {APP_GRID_APP_SOS, APP_GRID_IMAGE_SOS},
+   
 };
 
 lv_obj_t *ui_AppGrid;
@@ -143,25 +151,29 @@ static const void *app_grid_image_get(app_grid_image_id_t image_id)
 {
     switch (image_id)
     {
+    case APP_GRID_IMAGE_BIKE_STOPWATCH: return LV_EXT_IMG_GET(img_bikestopwatch);
     case APP_GRID_IMAGE_ACTIVITY: return LV_EXT_IMG_GET(img_activity);
     case APP_GRID_IMAGE_ALARM: return LV_EXT_IMG_GET(img_alarm);
-    case APP_GRID_IMAGE_ALARM_2: return LV_EXT_IMG_GET(img_alarm_2);
+    case APP_GRID_IMAGE_BLUETOOTH: return LV_EXT_IMG_GET(img_bluetooth);
+    case APP_GRID_IMAGE_CALCULATOR: return LV_EXT_IMG_GET(img_calculator);
     case APP_GRID_IMAGE_CALENDAR: return LV_EXT_IMG_GET(img_calendar);
     case APP_GRID_IMAGE_CAMERA: return LV_EXT_IMG_GET(img_camera);
-    case APP_GRID_IMAGE_ITUNES: return LV_EXT_IMG_GET(img_itunes);
-    case APP_GRID_IMAGE_MAIL: return LV_EXT_IMG_GET(img_mail);
+    case APP_GRID_IMAGE_COMPASS: return LV_EXT_IMG_GET(img_compass);
+    case APP_GRID_IMAGE_DRINK: return LV_EXT_IMG_GET(img_dringk);
+    case APP_GRID_IMAGE_EBOOK: return LV_EXT_IMG_GET(img_ebook);
+    case APP_GRID_IMAGE_LIGHT: return LV_EXT_IMG_GET(img_light);
     case APP_GRID_IMAGE_MAPS: return LV_EXT_IMG_GET(img_maps);
-    case APP_GRID_IMAGE_MESSAGES: return LV_EXT_IMG_GET(img_messages);
-    case APP_GRID_IMAGE_PASSBOOK: return LV_EXT_IMG_GET(img_passbook);
-    case APP_GRID_IMAGE_PHONE: return LV_EXT_IMG_GET(img_phone);
+    case APP_GRID_IMAGE_MUSIC: return LV_EXT_IMG_GET(img_music);
+    case APP_GRID_IMAGE_MUYU: return LV_EXT_IMG_GET(img_muyu);
+    case APP_GRID_IMAGE_NOTEBOOK: return LV_EXT_IMG_GET(img_notebook);
     case APP_GRID_IMAGE_PHOTOS: return LV_EXT_IMG_GET(img_photos);
-    case APP_GRID_IMAGE_REMOTE: return LV_EXT_IMG_GET(img_remote);
+    case APP_GRID_IMAGE_RECORD: return LV_EXT_IMG_GET(img_record);
+    case APP_GRID_IMAGE_SAFE: return LV_EXT_IMG_GET(img_safe);
     case APP_GRID_IMAGE_SETTINGS: return LV_EXT_IMG_GET(img_settings);
-    case APP_GRID_IMAGE_STOCKS: return LV_EXT_IMG_GET(img_stocks);
-    case APP_GRID_IMAGE_WORKOUT: return LV_EXT_IMG_GET(img_workout);
+    case APP_GRID_IMAGE_SOS: return LV_EXT_IMG_GET(img_sos);
+    case APP_GRID_IMAGE_TOMATO: return LV_EXT_IMG_GET(img_tomato);
+    case APP_GRID_IMAGE_WEATHER: return LV_EXT_IMG_GET(img_weather);
     case APP_GRID_IMAGE_WORLD_CLOCK: return LV_EXT_IMG_GET(img_world_clock);
-    case APP_GRID_IMAGE_WEATHER: return LV_EXT_IMG_GET(weather);
-    case APP_GRID_IMAGE_BLUETOOTH: return LV_EXT_IMG_GET(bluetooth);
     default: return LV_EXT_IMG_GET(img_settings);
     }
 }
@@ -589,7 +601,7 @@ static void app_grid_transform_icons(uint8_t force_refresh)
 
 static lv_obj_t *app_grid_add_icon(lv_obj_t *parent, const void *image,
                                    const app_grid_app_desc_t *app,
-                                   uint16_t row, uint16_t col, uint8_t muted)
+                                   uint16_t row, uint16_t col)
 {
     lv_obj_t *icon = lv_img_create(parent);
     lv_obj_t **slot = app_grid_icon_at(row, col);
@@ -599,8 +611,6 @@ static lv_obj_t *app_grid_add_icon(lv_obj_t *parent, const void *image,
     lv_obj_clear_flag(icon, LV_OBJ_FLAG_PRESS_LOCK);
     lv_obj_set_user_data(icon, (void *)app);
     lv_obj_add_event_cb(icon, app_grid_icon_event, LV_EVENT_ALL, NULL);
-    if (muted)
-        lv_obj_set_style_img_opa(icon, LV_OPA_50, LV_PART_MAIN);
     if (slot != NULL)
         *slot = icon;
     return icon;
@@ -612,23 +622,12 @@ static void app_grid_create_icons(lv_obj_t *page)
     uint16_t col;
     uint16_t row;
     uint16_t app_count = (uint16_t)(sizeof(app_grid_apps) / sizeof(app_grid_apps[0]));
-    uint16_t filler_count = (uint16_t)(sizeof(app_grid_placeholder_images) /
-                                       sizeof(app_grid_placeholder_images[0]));
 
     for (index = 0U; index < app_count; index++)
     {
         app_grid_index_to_cell(index, &col, &row);
         app_grid_add_icon(page, app_grid_image_get(app_grid_apps[index].image_id),
-                          &app_grid_apps[index], row, col, 0U);
-    }
-
-    for (index = 0U; index < APP_GRID_PLACEHOLDER_COUNT; index++)
-    {
-        uint16_t grid_index = (uint16_t)(index + app_count);
-        app_grid_index_to_cell(grid_index, &col, &row);
-        app_grid_add_icon(page,
-                          app_grid_image_get(app_grid_placeholder_images[index % filler_count]),
-                          NULL, row, col, 1U);
+                          &app_grid_apps[index], row, col);
     }
 }
 
