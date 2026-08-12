@@ -19,10 +19,27 @@ typedef enum
     APP_GRID_APP_BATTERY,
     APP_GRID_APP_SETTINGS,
     APP_GRID_APP_COUNT,
+    APP_GRID_APP_TIME,
+    APP_GRID_APP_PHOTOS,
+    APP_GRID_APP_BOOKS,
 } app_grid_app_id_t;
 
-/* Register application pages here as their implementations become available. */
-typedef void (*app_grid_app_open_cb_t)(app_grid_app_id_t app_id);
+// typedef enum
+// {
+//     APP_GRID_APP_ACTIVITY,
+//     APP_GRID_APP_MESSAGES,
+//     APP_GRID_APP_WEATHER,
+//     APP_GRID_APP_MUSIC,
+//     APP_GRID_APP_MAP,
+//     APP_GRID_APP_LIGHT,
+//     APP_GRID_APP_BLUETOOTH,
+//     APP_GRID_APP_BATTERY,
+//     APP_GRID_APP_SETTINGS,
+//     APP_GRID_APP_COUNT,
+// } app_grid_app_id_t;
+
+/* Return non-zero only when the requested application was opened. */
+typedef uint8_t (*app_grid_app_open_cb_t)(app_grid_app_id_t app_id);
 
 extern lv_obj_t *ui_AppGrid;
 

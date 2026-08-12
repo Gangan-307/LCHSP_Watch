@@ -51,6 +51,25 @@ lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay)
 
 ///////////////////// FUNCTIONS ////////////////////
 
+static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
+{
+    switch (app_id)
+    {
+    case APP_GRID_APP_MUSIC:
+        _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
+                          &ui_ScreenMusic_screen_init);
+        return 1U;
+
+    case APP_GRID_APP_TIME:
+        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
+                          &ui_ScreenHome_screen_init);                         
+        return 1U;
+
+    default:
+        return 0U;
+    }
+}
+
 ///////////////////// SCREENS ////////////////////
 
 void ui_init(void)
@@ -66,6 +85,7 @@ void ui_init(void)
     ui_Screen4_screen_init();
     ui_Screen5_screen_init();
     ui_ScreenMusic_screen_init();
+    app_grid_set_app_open_handler(ui_app_grid_open);
     ui____initial_actions0 = lv_obj_create(NULL);
     lv_disp_load_scr(ui_ScreenHome);
 }
