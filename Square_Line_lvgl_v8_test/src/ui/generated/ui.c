@@ -60,9 +60,30 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
                           &ui_ScreenMusic_screen_init);
         return 1U;
 
-    case APP_GRID_APP_TIME:
+    case APP_GRID_APP_LIGHT:
+        ui_Screen4_open_from_settings();
+        return 1U;
+
+    case APP_GRID_APP_BLUETOOTH:
+        ui_BluetoothSettings_open_from_controls();
+        return 1U;
+
+    case APP_GRID_APP_WEATHER:
+        ui_WeatherDetails_open();
+        return 1U;
+
+    case APP_GRID_APP_MAP:
+        ui_MapDetails_open();
+        return 1U;
+
+    case APP_GRID_APP_MUYU:
+        _ui_screen_change(&ui_Screen5, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
+                          &ui_Screen5_screen_init);
+        return 1U;
+    
+    case APP_GRID_APP_WORLD_CLOCK:
         _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
-                          &ui_ScreenHome_screen_init);                         
+                          &ui_ScreenHome_screen_init);
         return 1U;
 
     default:
