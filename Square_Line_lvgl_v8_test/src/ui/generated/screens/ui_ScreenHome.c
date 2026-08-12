@@ -194,9 +194,8 @@ static void ui_home_handle_gesture(lv_event_t *e, int animation_time)
         ui_AppGrid_open();
         break;
     case LV_DIR_RIGHT:
-        lv_indev_wait_release(indev);
-        _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_MOVE_RIGHT,
-                          animation_time, 0, &ui_ScreenMusic_screen_init);
+        (void)animation_time;
+        ui_ScreenMusic_open_from_home();
         break;
     case LV_DIR_TOP:
         home_gestures_open_notifications();
@@ -223,15 +222,7 @@ void ui_event_MainPanel1(lv_event_t *e)
 void ui_event_MusicEntry(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
-                          &ui_ScreenMusic_screen_init);
-}
-
-static void ui_event_HomeSettingsEntry(lv_event_t *e)
-{
-    if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        _ui_screen_change(&ui_Screen2, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
-                          &ui_Screen2_screen_init);
+        ui_ScreenMusic_open_from_home();
 }
 
 // build funtions
@@ -303,8 +294,7 @@ void ui_ScreenHome_screen_init(void)
     ui_home_create_shortcut(ui_MainPanel1, 199, LV_SYMBOL_GPS, "COMPASS",
                             0x142839, 0x2F5B7E, 0x52D4FF, NULL);
     ui_home_create_shortcut(ui_MainPanel1, 281, LV_SYMBOL_SETTINGS, "SETTINGS",
-                            0x2B1D23, 0x6D3A4B, 0xFF8AA0,
-                            ui_event_HomeSettingsEntry);
+                            0x2B1D23, 0x6D3A4B, 0xFF8AA0, NULL);
 
     /* Kept for generated-header compatibility; the old unlock hint is removed. */
     ui_Label8 = NULL;

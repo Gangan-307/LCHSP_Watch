@@ -4,9 +4,7 @@
 #include "../home_gestures.h"
 #include "bluetooth/find_phone_ble.h"
 #include "bluetooth/pan.h"
-#include "services/phone_sync.h"
-#include "ui/details/ui_MapDetails.h"
-#include "ui/details/ui_WeatherDetails.h"
+#include "ui/app_grid/app_grid_ui.h"
 
 #define BT_SETTINGS_BG              0x050608
 #define BT_SETTINGS_BORDER          0x293340
@@ -42,6 +40,12 @@ typedef enum
     BT_BADGE_RED,
 } bt_badge_style_t;
 
+typedef enum
+{
+    BT_SETTINGS_SOURCE_CONTROLS,
+    BT_SETTINGS_SOURCE_APP_GRID,
+} bt_settings_source_t;
+
 lv_obj_t *ui_BluetoothSettings = NULL;
 
 static lv_obj_t *bt_settings_content;
@@ -54,15 +58,12 @@ static lv_obj_t *bt_phone_detail;
 static lv_obj_t *bt_phone_badge;
 static lv_obj_t *bt_find_phone_detail;
 static lv_obj_t *bt_find_phone_badge;
-static lv_obj_t *bt_weather_detail;
-static lv_obj_t *bt_weather_badge;
-static lv_obj_t *bt_location_detail;
-static lv_obj_t *bt_location_badge;
 static lv_obj_t *bt_pan_detail;
 static lv_obj_t *bt_pan_badge;
 static lv_obj_t *bt_pan_switch;
 static lv_timer_t *bt_refresh_timer;
 static uint8_t bt_pan_preference;
+static bt_settings_source_t bt_settings_source = BT_SETTINGS_SOURCE_CONTROLS;
 
 static void bt_settings_refresh_timer_cb(lv_timer_t *timer);
 static void bt_settings_screen_event(lv_event_t *event);
@@ -70,30 +71,6 @@ static void bt_settings_return_event(lv_event_t *event);
 static void bt_settings_radio_event(lv_event_t *event);
 static void bt_settings_find_phone_event(lv_event_t *event);
 static void bt_settings_pan_event(lv_event_t *event);
-static void bt_settings_weather_event(lv_event_t *event);
-static void bt_settings_location_event(lv_event_t *event);
-
-static const char *bt_settings_weather_name(uint8_t wmo_code)
-{
-    if (wmo_code == 0U)
-        return "Clear";
-    if (wmo_code <= 3U)
-        return "Cloudy";
-    if (wmo_code == 45U || wmo_code == 48U)
-        return "Fog";
-    if (wmo_code >= 51U && wmo_code <= 57U)
-        return "Drizzle";
-    if (wmo_code >= 61U && wmo_code <= 67U)
-        return "Rain";
-    if ((wmo_code >= 71U && wmo_code <= 77U) ||
-        (wmo_code >= 85U && wmo_code <= 86U))
-        return "Snow";
-    if (wmo_code >= 80U && wmo_code <= 82U)
-        return "Showers";
-    if (wmo_code >= 95U && wmo_code <= 99U)
-        return "Storm";
-    return "Weather";
-}
 
 static void bt_settings_wait_release(void)
 {
@@ -118,11 +95,15 @@ static void bt_settings_start_refresh_timer(void)
         bt_refresh_timer = lv_timer_create(bt_settings_refresh_timer_cb, 1000, NULL);
 }
 
-static void bt_settings_return_to_controls(void)
+void ui_BluetoothSettings_return(void)
 {
     bt_settings_stop_refresh_timer();
     bt_settings_wait_release();
-    home_gestures_open_controls();
+
+    if (bt_settings_source == BT_SETTINGS_SOURCE_APP_GRID)
+        ui_AppGrid_open();
+    else
+        home_gestures_open_controls();
 }
 
 static void bt_settings_style_card(lv_obj_t *object)
@@ -386,10 +367,6 @@ static lv_obj_t *bt_settings_add_toggle_row(lv_obj_t *parent, lv_coord_t y,
 
 void ui_BluetoothSettings_refresh(void)
 {
-    phone_weather_t weather;
-    phone_location_t location;
-    char weather_detail[48];
-    char location_detail[48];
     uint8_t enabled;
     uint8_t classic_connected;
     uint8_t companion_connected;
@@ -405,43 +382,6 @@ void ui_BluetoothSettings_refresh(void)
 
     bt_settings_set_switch(bt_radio_switch, enabled);
     bt_settings_set_switch(bt_pan_switch, bt_pan_preference);
-
-    phone_sync_get_weather(&weather);
-    if (weather.valid)
-    {
-        int current_c = weather.current_deci_c >= 0 ?
-                        (weather.current_deci_c + 5) / 10 :
-                        (weather.current_deci_c - 5) / 10;
-        rt_snprintf(weather_detail, sizeof(weather_detail), "%d C - %s - %u%%",
-                    current_c, bt_settings_weather_name(weather.wmo_code),
-                    (unsigned int)weather.humidity_percent);
-        lv_label_set_text(bt_weather_detail, weather_detail);
-        bt_settings_set_badge(bt_weather_badge, "LIVE", BT_BADGE_BLUE);
-    }
-    else
-    {
-        lv_label_set_text(bt_weather_detail, "Waiting for HSP app weather sync");
-        bt_settings_set_badge(bt_weather_badge, "WAITING", BT_BADGE_MUTED);
-    }
-
-    phone_sync_get_location(&location);
-    if (location.valid)
-    {
-        if (location.city_valid)
-            rt_snprintf(location_detail, sizeof(location_detail), "%s - %u m accuracy",
-                        location.city, (unsigned int)location.accuracy_meters);
-        else
-            rt_snprintf(location_detail, sizeof(location_detail),
-                        "City unavailable - %u m accuracy",
-                        (unsigned int)location.accuracy_meters);
-        lv_label_set_text(bt_location_detail, location_detail);
-        bt_settings_set_badge(bt_location_badge, "SYNCED", BT_BADGE_BLUE);
-    }
-    else
-    {
-        lv_label_set_text(bt_location_detail, "Waiting for HSP app location sync");
-        bt_settings_set_badge(bt_location_badge, "WAITING", BT_BADGE_MUTED);
-    }
 
     if (!enabled)
     {
@@ -505,6 +445,7 @@ void ui_BluetoothSettings_refresh(void)
 
 void ui_BluetoothSettings_open_from_controls(void)
 {
+    bt_settings_source = BT_SETTINGS_SOURCE_CONTROLS;
     bt_settings_wait_release();
     _ui_screen_change(&ui_BluetoothSettings, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
                       &ui_BluetoothSettings_screen_init);
@@ -514,11 +455,14 @@ void ui_BluetoothSettings_open_from_controls(void)
     bt_settings_start_refresh_timer();
 }
 
-void ui_BluetoothSettings_open_from_details(void)
+void ui_BluetoothSettings_open_from_app_grid(void)
 {
+    bt_settings_source = BT_SETTINGS_SOURCE_APP_GRID;
     bt_settings_wait_release();
-    _ui_screen_change(&ui_BluetoothSettings, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
+    _ui_screen_change(&ui_BluetoothSettings, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
                       &ui_BluetoothSettings_screen_init);
+    if (bt_settings_content != NULL)
+        lv_obj_scroll_to_y(bt_settings_content, 0, LV_ANIM_OFF);
     ui_BluetoothSettings_refresh();
     bt_settings_start_refresh_timer();
 }
@@ -532,7 +476,7 @@ static void bt_settings_refresh_timer_cb(lv_timer_t *timer)
 static void bt_settings_return_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        bt_settings_return_to_controls();
+        ui_BluetoothSettings_return();
 }
 
 static void bt_settings_screen_event(lv_event_t *event)
@@ -544,7 +488,7 @@ static void bt_settings_screen_event(lv_event_t *event)
 
     indev = lv_indev_get_act();
     if (indev != NULL && lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
-        bt_settings_return_to_controls();
+        ui_BluetoothSettings_return();
 }
 
 static void bt_settings_radio_event(lv_event_t *event)
@@ -581,24 +525,6 @@ static void bt_settings_pan_event(lv_event_t *event)
 
     bt_pan_preference = bt_pan_preference ? 0U : 1U;
     ui_BluetoothSettings_refresh();
-}
-
-static void bt_settings_weather_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
-        return;
-
-    bt_settings_stop_refresh_timer();
-    ui_WeatherDetails_open();
-}
-
-static void bt_settings_location_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
-        return;
-
-    bt_settings_stop_refresh_timer();
-    ui_MapDetails_open();
 }
 
 void ui_BluetoothSettings_screen_init(void)
@@ -802,18 +728,6 @@ void ui_BluetoothSettings_screen_init(void)
                                "Battery status", "Share level with companion app", 1U,
                                NULL, NULL, NULL);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
-    bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_TINT,
-                        BT_SETTINGS_AMBER, BT_SETTINGS_AMBER_ICON_BG,
-                        "Weather", "Waiting for HSP app weather sync", "WAITING",
-                        BT_BADGE_MUTED, bt_settings_weather_event, &bt_weather_detail,
-                        &bt_weather_badge);
-    row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
-    bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_GPS,
-                        BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG,
-                        "Map & location", "Waiting for HSP app location sync", "WAITING",
-                        BT_BADGE_MUTED, bt_settings_location_event, &bt_location_detail,
-                        &bt_location_badge);
-    row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_BELL,
                         BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG, "Notifications",
                         "Companion permission and filters", "PLANNED", BT_BADGE_MUTED,
@@ -849,7 +763,7 @@ void ui_BluetoothSettings_screen_init(void)
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_ROW_GAP;
     bt_settings_add_row(bt_settings_content, row_y, LV_SYMBOL_REFRESH,
                         BT_SETTINGS_BLUE, BT_SETTINGS_BLUE_ICON_BG, "Network refresh",
-                        "Weather, NTP or MQTT on demand", "OFF", BT_BADGE_MUTED,
+                        "NTP or MQTT on demand", "OFF", BT_BADGE_MUTED,
                         NULL, NULL, &bt_pan_badge);
     row_y += BT_SETTINGS_ROW_HEIGHT + BT_SETTINGS_SECTION_GAP;
 
@@ -906,10 +820,6 @@ void ui_BluetoothSettings_screen_destroy(void)
     bt_phone_badge = NULL;
     bt_find_phone_detail = NULL;
     bt_find_phone_badge = NULL;
-    bt_weather_detail = NULL;
-    bt_weather_badge = NULL;
-    bt_location_detail = NULL;
-    bt_location_badge = NULL;
     bt_pan_detail = NULL;
     bt_pan_badge = NULL;
     bt_pan_switch = NULL;

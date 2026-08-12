@@ -6,9 +6,10 @@
 #include "ui.h"
 #include "ui_helpers.h"
 #include "home_gestures.h"
+#include "ui/system/system_power_ui.h"
 
 ///////////////////// VARIABLES ////////////////////
-lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay);
+lv_anim_t * ui_muyu_press_animation(lv_obj_t *target, int delay);
 
 // EVENTS
 lv_obj_t * ui____initial_actions0;
@@ -24,29 +25,29 @@ lv_obj_t * ui____initial_actions0;
 #endif
 
 ///////////////////// ANIMATIONS ////////////////////
-lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay)
+lv_anim_t * ui_muyu_press_animation(lv_obj_t *target, int delay)
 {
-    lv_anim_t * out_anim;
-    ui_anim_user_data_t * PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
-    PropertyAnimation_0_user_data->target = TargetObject;
-    PropertyAnimation_0_user_data->val = -1;
-    lv_anim_t PropertyAnimation_0;
-    lv_anim_init(&PropertyAnimation_0);
-    lv_anim_set_time(&PropertyAnimation_0, 80);
-    lv_anim_set_user_data(&PropertyAnimation_0, PropertyAnimation_0_user_data);
-    lv_anim_set_custom_exec_cb(&PropertyAnimation_0, _ui_anim_callback_set_image_zoom);
-    lv_anim_set_values(&PropertyAnimation_0, 256, 220);
-    lv_anim_set_path_cb(&PropertyAnimation_0, lv_anim_path_linear);
-    lv_anim_set_delay(&PropertyAnimation_0, delay + 0);
-    lv_anim_set_deleted_cb(&PropertyAnimation_0, _ui_anim_callback_free_user_data);
-    lv_anim_set_playback_time(&PropertyAnimation_0, 120);
-    lv_anim_set_playback_delay(&PropertyAnimation_0, 0);
-    lv_anim_set_repeat_count(&PropertyAnimation_0, 0);
-    lv_anim_set_repeat_delay(&PropertyAnimation_0, 0);
-    lv_anim_set_early_apply(&PropertyAnimation_0, false);
-    out_anim = lv_anim_start(&PropertyAnimation_0);
+    lv_anim_t animation;
+    ui_anim_user_data_t *animation_user_data =
+        lv_mem_alloc(sizeof(ui_anim_user_data_t));
 
-    return out_anim;
+    animation_user_data->target = target;
+    animation_user_data->val = -1;
+    lv_anim_init(&animation);
+    lv_anim_set_time(&animation, 80);
+    lv_anim_set_user_data(&animation, animation_user_data);
+    lv_anim_set_custom_exec_cb(&animation, _ui_anim_callback_set_image_zoom);
+    lv_anim_set_values(&animation, 256, 220);
+    lv_anim_set_path_cb(&animation, lv_anim_path_linear);
+    lv_anim_set_delay(&animation, delay);
+    lv_anim_set_deleted_cb(&animation, _ui_anim_callback_free_user_data);
+    lv_anim_set_playback_time(&animation, 120);
+    lv_anim_set_playback_delay(&animation, 0);
+    lv_anim_set_repeat_count(&animation, 0);
+    lv_anim_set_repeat_delay(&animation, 0);
+    lv_anim_set_early_apply(&animation, false);
+
+    return lv_anim_start(&animation);
 }
 
 ///////////////////// FUNCTIONS ////////////////////
@@ -56,16 +57,15 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
     switch (app_id)
     {
     case APP_GRID_APP_MUSIC:
-        _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
-                          &ui_ScreenMusic_screen_init);
+        ui_ScreenMusic_open_from_app_grid();
         return 1U;
 
     case APP_GRID_APP_LIGHT:
-        ui_Screen4_open_from_settings();
+        ui_RgbLight_open_from_app_grid();
         return 1U;
 
     case APP_GRID_APP_BLUETOOTH:
-        ui_BluetoothSettings_open_from_controls();
+        ui_BluetoothSettings_open_from_app_grid();
         return 1U;
 
     case APP_GRID_APP_WEATHER:
@@ -77,10 +77,9 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         return 1U;
 
     case APP_GRID_APP_MUYU:
-        _ui_screen_change(&ui_Screen5, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
-                          &ui_Screen5_screen_init);
+        ui_Muyu_open_from_app_grid();
         return 1U;
-    
+
     case APP_GRID_APP_WORLD_CLOCK:
         _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
                           &ui_ScreenHome_screen_init);
@@ -100,11 +99,8 @@ void ui_init(void)
                                                false, LV_FONT_DEFAULT);
     lv_disp_set_theme(dispp, theme);
     ui_ScreenHome_screen_init();
-    ui_Screen2_screen_init();
-    ui_Screen3_screen_init();
-    ui_Screen1_screen_init();
-    ui_Screen4_screen_init();
-    ui_Screen5_screen_init();
+    ui_RgbLight_screen_init();
+    ui_Muyu_screen_init();
     ui_ScreenMusic_screen_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
     ui____initial_actions0 = lv_obj_create(NULL);
@@ -113,13 +109,11 @@ void ui_init(void)
 
 void ui_destroy(void)
 {
+    system_power_ui_destroy();
     home_gestures_destroy();
     ui_ScreenHome_screen_destroy();
-    ui_Screen2_screen_destroy();
-    ui_Screen3_screen_destroy();
-    ui_Screen1_screen_destroy();
-    ui_Screen4_screen_destroy();
-    ui_Screen5_screen_destroy();
+    ui_RgbLight_screen_destroy();
+    ui_Muyu_screen_destroy();
     ui_BluetoothSettings_screen_destroy();
     ui_ScreenMusic_screen_destroy();
     ui_AppGrid_screen_destroy();

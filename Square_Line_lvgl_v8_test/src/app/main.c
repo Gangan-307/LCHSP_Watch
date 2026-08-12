@@ -20,6 +20,7 @@
 #include "drivers/display_power.h"
 #include "services/input_wake.h"
 #include "services/power_manager.h"
+#include "services/watch_key_router.h"
 #include "services/wrist_wake.h"
 #include "bluetooth/music_app.h"
 
@@ -83,6 +84,7 @@ int main(void)
     battery_ui_init();
     display_power_init();
     input_wake_init();
+    watch_key_router_init();
     wrist_wake_init();
     bt_pan_app_init();
 

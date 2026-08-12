@@ -10,6 +10,7 @@ extern "C" {
 void power_manager_boot_gate(void);
 void power_manager_startup_feedback(void);
 rt_err_t power_manager_shutdown(void);
+void power_manager_restart(void);
 
 #ifdef __cplusplus
 }

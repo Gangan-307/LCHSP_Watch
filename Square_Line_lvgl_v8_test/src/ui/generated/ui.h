@@ -19,11 +19,8 @@ extern "C" {
 ///////////////////// SCREENS ////////////////////
 
 #include "screens/ui_ScreenHome.h"
-#include "screens/ui_Screen2.h"
-#include "screens/ui_Screen3.h"
-#include "screens/ui_Screen1.h"
-#include "screens/ui_Screen4.h"
-#include "screens/ui_Screen5.h"
+#include "screens/ui_RgbLight.h"
+#include "screens/ui_Muyu.h"
 #include "screens/ui_BluetoothSettings.h"
 #include "music_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
@@ -32,19 +29,13 @@ extern "C" {
 
 ///////////////////// VARIABLES ////////////////////
 
-extern lv_anim_t * muyupress_Animation(lv_obj_t * TargetObject, int delay);
+extern lv_anim_t * ui_muyu_press_animation(lv_obj_t *target, int delay);
 
 // EVENTS
 
 extern lv_obj_t * ui____initial_actions0;
 
 // IMAGES AND IMAGE SETS
-LV_IMG_DECLARE(ui_img_light_png);    // assets/light.png
-LV_IMG_DECLARE(ui_img_run_png);    // assets/run.png
-LV_IMG_DECLARE(ui_img_keyboard_png);    // assets/keyboard.png
-LV_IMG_DECLARE(ui_img_setting_png);    // assets/setting.png
-LV_IMG_DECLARE(ui_img_fish_png);    // assets/fish.png
-LV_IMG_DECLARE(ui_img_ui1_png);    // assets/ui1.png
 LV_IMG_DECLARE(ui_img_fish4_png);    // assets/fish4.png
 
 // UI INIT

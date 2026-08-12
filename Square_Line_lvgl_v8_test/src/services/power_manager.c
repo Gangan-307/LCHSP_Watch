@@ -5,6 +5,7 @@
 #include "rtthread.h"
 #include "rtdevice.h"
 #include "bf0_hal.h"
+#include "drv_common.h"
 #include "drivers/rgb.h"
 #include "drivers/vibrator.h"
 #include "power_manager.h"
@@ -26,32 +27,36 @@ static void power_manager_vibrate_feedback(void)
     }
 }
 
-static int power_manager_key1_pressed(void)
+static int power_manager_key2_pressed(void)
 {
-    int level = rt_pin_read(BSP_KEY1_PIN);
+    int level = rt_pin_read(BSP_KEY2_PIN);
 
-#ifdef BSP_KEY1_ACTIVE_HIGH
+#ifdef BSP_KEY2_ACTIVE_HIGH
     return level != 0;
 #else
     return level == 0;
 #endif
 }
 
-static rt_err_t power_manager_configure_key1_wakeup(void)
+static rt_err_t power_manager_configure_key2_wakeup(void)
 {
     int8_t wakeup_pin;
 
-    wakeup_pin = HAL_HPAON_QueryWakeupPin(hwp_gpio1, BSP_KEY1_PIN);
+    wakeup_pin = HAL_HPAON_QueryWakeupPin(hwp_gpio1, BSP_KEY2_PIN);
     if (wakeup_pin < 0)
     {
-        rt_kprintf("power: KEY1 is not a PMU wakeup pin\n");
+        rt_kprintf("power: KEY2 is not a PMU wakeup pin\n");
         return -RT_ERROR;
     }
 
     if (HAL_PMU_SelectWakeupPin(0, (uint8_t)wakeup_pin) != HAL_OK ||
+#ifdef BSP_KEY2_ACTIVE_HIGH
         HAL_PMU_EnablePinWakeup(0, AON_PIN_MODE_POS_EDGE) != HAL_OK)
+#else
+        HAL_PMU_EnablePinWakeup(0, AON_PIN_MODE_NEG_EDGE) != HAL_OK)
+#endif
     {
-        rt_kprintf("power: cannot configure KEY1 wakeup\n");
+        rt_kprintf("power: cannot configure KEY2 wakeup\n");
         return -RT_ERROR;
     }
 
@@ -74,13 +79,13 @@ void power_manager_boot_gate(void)
     if (SystemPowerOnModeGet() != PM_HIBERNATE_BOOT)
         return;
 
-    rt_pin_mode(BSP_KEY1_PIN, PIN_MODE_INPUT);
+    rt_pin_mode(BSP_KEY2_PIN, PIN_MODE_INPUT);
     for (elapsed = 0; elapsed < POWER_ON_HOLD_MS;
          elapsed += POWER_ON_CHECK_MS)
     {
-        if (!power_manager_key1_pressed())
+        if (!power_manager_key2_pressed())
         {
-            if (power_manager_configure_key1_wakeup() == RT_EOK)
+            if (power_manager_configure_key2_wakeup() == RT_EOK)
                 power_manager_enter_hibernate();
             return;
         }
@@ -96,7 +101,7 @@ void power_manager_startup_feedback(void)
 
 rt_err_t power_manager_shutdown(void)
 {
-    if (power_manager_configure_key1_wakeup() != RT_EOK)
+    if (power_manager_configure_key2_wakeup() != RT_EOK)
         return -RT_ERROR;
 
     rgb_led_set_color(0x000000U);
@@ -106,4 +111,15 @@ rt_err_t power_manager_shutdown(void)
     power_manager_enter_hibernate();
 
     return RT_EOK;
+}
+
+void power_manager_restart(void)
+{
+    rgb_led_set_color(0x000000U);
+    power_manager_vibrate_feedback();
+    drv_reboot();
+
+    while (1)
+    {
+    }
 }

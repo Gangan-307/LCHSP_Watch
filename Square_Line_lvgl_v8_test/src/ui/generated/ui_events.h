@@ -12,12 +12,11 @@ extern "C" {
 #endif
 
 void on_led_toggle(lv_event_t * e);
-void trigger_vibration(lv_event_t * e);
+void on_muyu_pressed(lv_event_t * e);
 void on_colorwheel_changed(lv_event_t * e);
 void on_white_color_selected(lv_event_t * e);
 void on_rgb_brightness_changed(lv_event_t * e);
 void on_power_slider_event(lv_event_t * e);
-void update_led_toggle_label(lv_obj_t * label);
 int led_is_enabled(void);
 uint32_t led_get_selected_color(void);
 uint8_t led_get_brightness_percent(void);

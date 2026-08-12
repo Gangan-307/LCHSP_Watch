@@ -10,6 +10,7 @@ set(SOURCES
     services/power_manager.c
     services/rtc.c
     services/time_sync.c
+    services/watch_key_router.c
     services/wrist_wake.c
     bluetooth/battery_ble.c
     bluetooth/find_phone_ble.c
@@ -19,6 +20,7 @@ set(SOURCES
     ui/details/ui_MapDetails.c
     ui/music/music_ui.c
     ui/app_grid/app_grid_ui.c
+    ui/system/system_power_ui.c
     ui/generated/ui.c
     ui/generated/hsp_font_cjk_22.c
     ui/generated/home_gestures.c
@@ -26,11 +28,8 @@ set(SOURCES
     ui/generated/ui_helpers.c
     ui/generated/components/ui_comp_hook.c
     ui/generated/screens/ui_ScreenHome.c
-    ui/generated/screens/ui_Screen1.c
-    ui/generated/screens/ui_Screen2.c
-    ui/generated/screens/ui_Screen3.c
-    ui/generated/screens/ui_Screen4.c
-    ui/generated/screens/ui_Screen5.c
+    ui/generated/screens/ui_RgbLight.c
+    ui/generated/screens/ui_Muyu.c
     ui/generated/screens/ui_BluetoothSettings.c)
 
 add_library(ui ${SOURCES})
@@ -44,4 +43,5 @@ target_include_directories(ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/details
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/music
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/app_grid
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/system
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/generated)

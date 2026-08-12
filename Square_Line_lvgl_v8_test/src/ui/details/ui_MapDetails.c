@@ -2,7 +2,7 @@
 
 #include "rtthread.h"
 #include "services/phone_sync.h"
-#include "ui/generated/screens/ui_BluetoothSettings.h"
+#include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/ui_helpers.h"
 
 #define MAP_BG              0x050608
@@ -158,17 +158,17 @@ static void map_details_timer_cb(lv_timer_t *timer)
     ui_MapDetails_refresh();
 }
 
-static void map_details_return(void)
+void ui_MapDetails_return(void)
 {
     map_details_stop_timer();
     map_details_wait_release();
-    ui_BluetoothSettings_open_from_details();
+    ui_AppGrid_open();
 }
 
 static void map_details_back_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        map_details_return();
+        ui_MapDetails_return();
 }
 
 static void map_details_screen_event(lv_event_t *event)
@@ -180,7 +180,7 @@ static void map_details_screen_event(lv_event_t *event)
 
     indev = lv_indev_get_act();
     if (indev != NULL && lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
-        map_details_return();
+        ui_MapDetails_return();
 }
 
 static void map_details_add_coordinate_row(lv_obj_t *parent, lv_coord_t y,
