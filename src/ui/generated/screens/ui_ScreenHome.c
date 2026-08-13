@@ -8,6 +8,7 @@
 #include "bluetooth/pan.h"
 #include "services/activity_tracker.h"
 #include "services/battery_ui.h"
+#include "services/phone_notifications.h"
 #include "lv_ext_resource_manager.h"
 
 #define HOME_SCREEN_BG        0x0B0D11
@@ -21,6 +22,7 @@
 #define HOME_STEPS_BLUE       0x3FA9FF
 #define HOME_CALORIES_RED     0xFF5A67
 #define HOME_DISTANCE_GREEN   0x63DC83
+#define HOME_NOTIFICATION_RED 0xFF3B30
 #define HOME_TIME_CENTER_Y    140
 #define HOME_SCREEN_WIDTH     390
 #define HOME_TIME_GAP         8
@@ -63,12 +65,14 @@ static lv_obj_t *home_distance_label;
 static lv_obj_t *home_steps_arc;
 static lv_obj_t *home_calories_arc;
 static lv_obj_t *home_distance_arc;
+static lv_obj_t *home_notification_dot;
 static lv_obj_t *home_time_digits[4];
 static uint8_t home_time_hours = 12U;
 static uint8_t home_time_minutes;
 static uint8_t home_time_rendered_valid;
 static lv_obj_t *home_time_colon;
 static int home_bluetooth_connected = -1;
+static int home_notification_visible = -1;
 
 typedef struct
 {
@@ -178,11 +182,30 @@ static void ui_home_activity_update(void)
                                               HOME_DISTANCE_GOAL_M));
 }
 
+static void ui_home_notification_update(void)
+{
+    int visible;
+
+    if (home_notification_dot == NULL)
+        return;
+
+    visible = phone_notifications_get_count() > 0U ? 1 : 0;
+    if (home_notification_visible == visible)
+        return;
+
+    if (visible)
+        lv_obj_clear_flag(home_notification_dot, LV_OBJ_FLAG_HIDDEN);
+    else
+        lv_obj_add_flag(home_notification_dot, LV_OBJ_FLAG_HIDDEN);
+    home_notification_visible = visible;
+}
+
 static void ui_home_bluetooth_timer_cb(lv_timer_t *timer)
 {
     (void)timer;
     ui_home_bluetooth_update();
     ui_home_activity_update();
+    ui_home_notification_update();
 }
 
 static void ui_home_set_image_visible_pos(lv_obj_t *image,
@@ -427,6 +450,27 @@ void ui_ScreenHome_screen_init(void)
 
     battery_ui_bind_home(ui_MainPanel1);
 
+    home_notification_dot = lv_obj_create(ui_MainPanel1);
+    lv_obj_set_size(home_notification_dot, 12, 12);
+    lv_obj_set_pos(home_notification_dot, 50, 24);
+    lv_obj_clear_flag(home_notification_dot,
+                      LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(home_notification_dot,
+                    LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_radius(home_notification_dot, LV_RADIUS_CIRCLE,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_color(home_notification_dot,
+                              lv_color_hex(HOME_NOTIFICATION_RED),
+                              LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(home_notification_dot, LV_OPA_COVER,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(home_notification_dot, 0,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(home_notification_dot, 0,
+                             LV_PART_MAIN | LV_STATE_DEFAULT);
+    home_notification_visible = -1;
+    ui_home_notification_update();
+
     ui_BluetoothStatus = lv_img_create(ui_MainPanel1);
     lv_img_set_src(ui_BluetoothStatus, LV_EXT_IMG_GET(BT_connecting));
     lv_obj_set_size(ui_BluetoothStatus, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -511,6 +555,7 @@ void ui_ScreenHome_screen_destroy(void)
     home_steps_arc = NULL;
     home_calories_arc = NULL;
     home_distance_arc = NULL;
+    home_notification_dot = NULL;
     home_time_digits[0] = NULL;
     home_time_digits[1] = NULL;
     home_time_digits[2] = NULL;
@@ -518,4 +563,5 @@ void ui_ScreenHome_screen_destroy(void)
     home_time_colon = NULL;
     home_time_rendered_valid = 0U;
     home_bluetooth_connected = -1;
+    home_notification_visible = -1;
 }

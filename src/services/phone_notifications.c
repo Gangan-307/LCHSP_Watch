@@ -150,6 +150,19 @@ uint32_t phone_notifications_get_revision(void)
     return revision;
 }
 
+uint8_t phone_notifications_get_count(void)
+{
+    uint8_t count;
+
+    if (!phone_notifications_initialized)
+        return 0U;
+
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    count = phone_notifications.count;
+    rt_mutex_release(&phone_notifications_lock);
+    return count;
+}
+
 rt_err_t phone_notifications_get(uint16_t id, phone_notification_t *item)
 {
     uint8_t index;
