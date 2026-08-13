@@ -1,6 +1,7 @@
 #include "lvgl.h"
 #include "bluetooth/music_app.h"
 #include "drivers/display_power.h"
+#include "drivers/vibrator.h"
 #include "services/input_wake.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/details/ui_MapDetails.h"
@@ -9,6 +10,9 @@
 #include "ui/generated/ui.h"
 #include "ui/system/system_power_ui.h"
 #include "watch_key_router.h"
+
+#define POWER_MENU_VIBRATION_LEVEL  (70U)
+#define POWER_MENU_VIBRATION_MS     (70U)
 
 static void watch_key_router_back(void)
 {
@@ -52,7 +56,11 @@ static void watch_key_router_event(input_wake_key_t key,
         if (key == INPUT_WAKE_KEY1)
             display_power_sleep();
         else if (key == INPUT_WAKE_KEY2)
+        {
             system_power_ui_open();
+            (void)vibrator_vibrate(POWER_MENU_VIBRATION_LEVEL,
+                                   POWER_MENU_VIBRATION_MS);
+        }
         return;
     }
 
