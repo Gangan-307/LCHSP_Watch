@@ -6,6 +6,8 @@
 #ifndef UI_SCREENHOME_H
 #define UI_SCREENHOME_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,6 +15,7 @@ extern "C" {
 // SCREEN: ui_ScreenHome
 extern void ui_ScreenHome_screen_init(void);
 extern void ui_ScreenHome_screen_destroy(void);
+extern void ui_ScreenHome_set_time(uint8_t hours, uint8_t minutes);
 extern void ui_event_ScreenHome(lv_event_t * e);
 extern lv_obj_t * ui_ScreenHome;
 extern void ui_event_MainPanel1(lv_event_t * e);

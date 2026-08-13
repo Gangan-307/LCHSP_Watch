@@ -26,7 +26,6 @@ void update_ui_time(void)
 {
     RTC_TimeTypeDef RTC_TimeStruct = {0};
     RTC_DateTypeDef RTC_DateStruct = {0};
-    char time_str[16] = {0};
     char date_str[32] = {0};
     const char *week_days[] = {"SUN", "MON", "TUE", "WED",
                                 "THU", "FRI", "SAT"};
@@ -40,11 +39,7 @@ void update_ui_time(void)
         HAL_RTC_GetTime(&RTC_Handler, &RTC_TimeStruct, RTC_FORMAT_BIN);
     }
     
-    // 2. Format the clock face without seconds to keep the home screen stable.
-    snprintf(time_str, sizeof(time_str), "%02d:%02d",
-             RTC_TimeStruct.Hours, RTC_TimeStruct.Minutes);
-    
-    // 3. Short, fixed-width date format for the watch face.
+    // 2. Short, fixed-width date format for the watch face.
     if (RTC_DateStruct.Month >= 1 && RTC_DateStruct.Month <= 12) {
         snprintf(date_str, sizeof(date_str), "%s - %s %02d",
                  week_days[RTC_DateStruct.WeekDay % 7],
@@ -52,12 +47,10 @@ void update_ui_time(void)
                  RTC_DateStruct.Date);
     }
     
-    // 4. 使用互斥量保护UI操作
+    // 3. 使用互斥量保护UI操作
     rt_mutex_take(&ui_mutex, RT_WAITING_FOREVER);
     
-    if (ui_LabelTime != NULL) {
-        lv_label_set_text(ui_LabelTime, time_str);
-    }
+    ui_ScreenHome_set_time(RTC_TimeStruct.Hours, RTC_TimeStruct.Minutes);
     if (ui_LabelDate != NULL) {
         lv_label_set_text(ui_LabelDate, date_str);
     }
