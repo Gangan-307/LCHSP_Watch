@@ -56,6 +56,7 @@ void phone_notifications_clear(void);
 
 /* Read lightweight cache state without copying every notification. */
 uint32_t phone_notifications_get_revision(void);
+uint8_t phone_notifications_get_count(void);
 
 /* Copy one notification by id into item. */
 rt_err_t phone_notifications_get(uint16_t id, phone_notification_t *item);
