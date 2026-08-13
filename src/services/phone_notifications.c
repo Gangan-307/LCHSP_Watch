@@ -2,7 +2,11 @@
 
 #include <string.h>
 
+#include "drivers/vibrator.h"
 #include "phone_notifications.h"
+
+#define NOTIFICATION_VIBRATION_LEVEL  (75U)
+#define NOTIFICATION_VIBRATION_MS     (120U)
 
 static struct rt_mutex phone_notifications_lock;
 static uint8_t phone_notifications_initialized;
@@ -12,6 +16,22 @@ static uint8_t phone_notifications_app_is_valid(uint8_t app)
 {
     return app >= PHONE_NOTIFICATION_APP_SMS &&
            app <= PHONE_NOTIFICATION_APP_QQ;
+}
+
+static uint8_t phone_notifications_content_matches(
+    const phone_notification_t *item, uint8_t app,
+    const uint8_t *title, uint16_t title_len,
+    const uint8_t *body, uint16_t body_len)
+{
+    if (!item->valid || item->app != app ||
+        item->title_len != title_len || item->body_len != body_len)
+        return 0U;
+    if (title_len > 0U && memcmp(item->title, title, title_len) != 0)
+        return 0U;
+    if (body_len > 0U && memcmp(item->body, body, body_len) != 0)
+        return 0U;
+
+    return 1U;
 }
 
 void phone_notifications_init(void)
@@ -32,6 +52,7 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
                                     const uint8_t *body, uint16_t body_len)
 {
     uint8_t index;
+    uint8_t should_vibrate = 0U;
     phone_notification_t *item = RT_NULL;
 
     if (!phone_notifications_initialized || id == 0U ||
@@ -56,6 +77,7 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
 
     if (item == RT_NULL)
     {
+        should_vibrate = 1U;
         if (phone_notifications.count < PHONE_NOTIFICATION_MAX_ITEMS)
         {
             item = &phone_notifications.items[phone_notifications.count++];
@@ -67,6 +89,11 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
                     (PHONE_NOTIFICATION_MAX_ITEMS - 1U));
             item = &phone_notifications.items[PHONE_NOTIFICATION_MAX_ITEMS - 1U];
         }
+    }
+    else if (!phone_notifications_content_matches(item, app, title, title_len,
+                                                   body, body_len))
+    {
+        should_vibrate = 1U;
     }
 
     rt_memset(item, 0, sizeof(*item));
@@ -85,6 +112,12 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
     item->body[body_len] = '\0';
     phone_notifications.revision++;
     rt_mutex_release(&phone_notifications_lock);
+
+    if (should_vibrate)
+    {
+        (void)vibrator_vibrate(NOTIFICATION_VIBRATION_LEVEL,
+                               NOTIFICATION_VIBRATION_MS);
+    }
     return RT_EOK;
 }
 
