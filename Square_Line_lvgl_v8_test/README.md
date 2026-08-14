@@ -178,7 +178,7 @@
 
 ## Android 配套 App
 
-Android 配套 App 位于独立项目 `hsp/`，负责连接与重连手表、双向查找、手机数据同步、通知转发以及歌词和封面传输。Android 端有独立的实现说明，详见 [hsp/README.md](hsp/README.md)。本 README 以手表固件为主，不展开 App 页面和权限细节。
+Android 配套 App 位于独立项目 `hsp/`，负责连接与重连手表、双向查找、手机数据同步、通知转发以及歌词和封面传输。Android 端有独立的实现说明，详见 [LCHSP_Watch_App](https://github.com/Gangan-307/LCHSP_Watch_App)。本 README 以手表固件为主，不展开 App 页面和权限细节。
 
 ## 工程结构
 
