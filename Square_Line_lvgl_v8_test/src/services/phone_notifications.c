@@ -11,6 +11,7 @@
 static struct rt_mutex phone_notifications_lock;
 static uint8_t phone_notifications_initialized;
 static phone_notification_snapshot_t phone_notifications;
+static uint16_t phone_notifications_pending_preview_id;
 
 static uint8_t phone_notifications_app_is_valid(uint8_t app)
 {
@@ -75,9 +76,17 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
         }
     }
 
+    if (item != RT_NULL &&
+        phone_notifications_content_matches(item, app, title, title_len,
+                                            body, body_len))
+    {
+        rt_mutex_release(&phone_notifications_lock);
+        return RT_EOK;
+    }
+
+    should_vibrate = 1U;
     if (item == RT_NULL)
     {
-        should_vibrate = 1U;
         if (phone_notifications.count < PHONE_NOTIFICATION_MAX_ITEMS)
         {
             item = &phone_notifications.items[phone_notifications.count++];
@@ -90,10 +99,17 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
             item = &phone_notifications.items[PHONE_NOTIFICATION_MAX_ITEMS - 1U];
         }
     }
-    else if (!phone_notifications_content_matches(item, app, title, title_len,
-                                                   body, body_len))
+    else
     {
-        should_vibrate = 1U;
+        /* Android moves an updated notification to the newest position. */
+        if (index + 1U < phone_notifications.count)
+        {
+            memmove(&phone_notifications.items[index],
+                    &phone_notifications.items[index + 1U],
+                    sizeof(phone_notifications.items[0]) *
+                    (phone_notifications.count - index - 1U));
+        }
+        item = &phone_notifications.items[phone_notifications.count - 1U];
     }
 
     rt_memset(item, 0, sizeof(*item));
@@ -104,12 +120,15 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
     item->title_len = title_len;
     item->body_len = body_len;
     item->valid = 1U;
+    item->unread = 1U;
     if (title_len > 0U)
         rt_memcpy(item->title, title, title_len);
     if (body_len > 0U)
         rt_memcpy(item->body, body, body_len);
     item->title[title_len] = '\0';
     item->body[body_len] = '\0';
+    if (should_vibrate)
+        phone_notifications_pending_preview_id = id;
     phone_notifications.revision++;
     rt_mutex_release(&phone_notifications_lock);
 
@@ -145,6 +164,8 @@ rt_err_t phone_notifications_remove(uint16_t id)
         phone_notifications.count--;
         rt_memset(&phone_notifications.items[phone_notifications.count], 0,
                   sizeof(phone_notifications.items[0]));
+        if (phone_notifications_pending_preview_id == id)
+            phone_notifications_pending_preview_id = 0U;
         phone_notifications.revision++;
         rt_mutex_release(&phone_notifications_lock);
         return RT_EOK;
@@ -165,6 +186,7 @@ void phone_notifications_clear(void)
         rt_memset(phone_notifications.items, 0,
                   sizeof(phone_notifications.items));
         phone_notifications.count = 0U;
+        phone_notifications_pending_preview_id = 0U;
         phone_notifications.revision++;
     }
     rt_mutex_release(&phone_notifications_lock);
@@ -194,6 +216,69 @@ uint8_t phone_notifications_get_count(void)
     count = phone_notifications.count;
     rt_mutex_release(&phone_notifications_lock);
     return count;
+}
+
+uint8_t phone_notifications_get_unread_count(void)
+{
+    uint8_t index;
+    uint8_t count = 0U;
+
+    if (!phone_notifications_initialized)
+        return 0U;
+
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    for (index = 0U; index < phone_notifications.count; index++)
+    {
+        if (phone_notifications.items[index].valid &&
+            phone_notifications.items[index].unread)
+        {
+            count++;
+        }
+    }
+    rt_mutex_release(&phone_notifications_lock);
+    return count;
+}
+
+rt_err_t phone_notifications_mark_read(uint16_t id)
+{
+    uint8_t index;
+
+    if (!phone_notifications_initialized || id == 0U)
+        return -RT_EINVAL;
+
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    for (index = 0U; index < phone_notifications.count; index++)
+    {
+        phone_notification_t *item = &phone_notifications.items[index];
+
+        if (!item->valid || item->id != id)
+            continue;
+
+        if (item->unread)
+        {
+            item->unread = 0U;
+            phone_notifications.revision++;
+        }
+        if (phone_notifications_pending_preview_id == id)
+            phone_notifications_pending_preview_id = 0U;
+        rt_mutex_release(&phone_notifications_lock);
+        return RT_EOK;
+    }
+
+    rt_mutex_release(&phone_notifications_lock);
+    return -RT_ERROR;
+}
+
+uint8_t phone_notifications_take_pending_preview(uint16_t *id)
+{
+    if (!phone_notifications_initialized || id == RT_NULL)
+        return 0U;
+
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    *id = phone_notifications_pending_preview_id;
+    phone_notifications_pending_preview_id = 0U;
+    rt_mutex_release(&phone_notifications_lock);
+    return *id != 0U ? 1U : 0U;
 }
 
 rt_err_t phone_notifications_get(uint16_t id, phone_notification_t *item)

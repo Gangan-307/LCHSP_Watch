@@ -29,6 +29,7 @@ typedef struct
     uint8_t hour;
     uint8_t minute;
     uint8_t valid;
+    uint8_t unread;
     char title[PHONE_NOTIFICATION_TITLE_MAX_BYTES + 1U];
     char body[PHONE_NOTIFICATION_BODY_MAX_BYTES + 1U];
 } phone_notification_t;
@@ -57,6 +58,14 @@ void phone_notifications_clear(void);
 /* Read lightweight cache state without copying every notification. */
 uint32_t phone_notifications_get_revision(void);
 uint8_t phone_notifications_get_count(void);
+uint8_t phone_notifications_get_unread_count(void);
+
+/* Reading and deleting are separate operations. Marking a message read only
+ * updates the watch-side indicator and does not delete it from the phone. */
+rt_err_t phone_notifications_mark_read(uint16_t id);
+
+/* Consume the newest notification that needs an automatic watch preview. */
+uint8_t phone_notifications_take_pending_preview(uint16_t *id);
 
 /* Copy one notification by id into item. */
 rt_err_t phone_notifications_get(uint16_t id, phone_notification_t *item);

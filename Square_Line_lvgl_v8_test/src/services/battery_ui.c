@@ -5,8 +5,10 @@
 #include "rtthread.h"
 #include "rtdevice.h"
 #include "lvgl.h"
+#include "charge.h"
 #include "drivers/adc.h"
 #include "drivers/display_power.h"
+#include "drivers/vibrator.h"
 #include "services/power_manager.h"
 #include "bluetooth/battery_ble.h"
 #include "bluetooth/find_phone_ble.h"
@@ -19,7 +21,6 @@
 #define BATTERY_THREAD_STACK_SIZE      (1536U)
 #define BATTERY_THREAD_PRIORITY        (28U)
 #define BATTERY_THREAD_TICK            (10U)
-#define VBUS_DET_PIN                   (44)
 #define BATTERY_CURVE_VOLTAGE_SCALE    (10.0f)
 #define BATTERY_FILTER_PREV_WEIGHT     (4.0f)
 #define BATTERY_FILTER_CURRENT_WEIGHT  (1.0f)
@@ -27,11 +28,18 @@
 #define BATTERY_MIN_VALID_MV           (2800.0f)
 #define BATTERY_MAX_VALID_MV           (4500.0f)
 #define BATTERY_LOW_PERCENT            (15U)
+#define BATTERY_HAPTIC_LOW_PERCENT     (10U)
 #define BATTERY_CRITICAL_PERCENT       (5U)
 #define BATTERY_CRITICAL_SAMPLE_COUNT  (3U)
 #define BATTERY_LOW_NOTICE_DURATION_MS (5000U)
 #define BATTERY_SHUTDOWN_TIMEOUT_MS    (15000U)
 #define BATTERY_VBUS_DEBOUNCE_MS       (60U)
+#define BATTERY_LOW_VIBRATION_LEVEL    (70U)
+#define BATTERY_LOW_VIBRATION_MS       (100U)
+#define BATTERY_PLUG_VIBRATION_LEVEL   (60U)
+#define BATTERY_PLUG_VIBRATION_MS      (60U)
+#define BATTERY_FULL_VIBRATION_LEVEL   (65U)
+#define BATTERY_FULL_VIBRATION_MS      (80U)
 
 static lv_obj_t *battery_status_label;
 static struct rt_mutex battery_status_lock;
@@ -54,6 +62,11 @@ static int displayed_battery_percent = -1;
 static int displayed_battery_valid = -1;
 static int displayed_external_power = -1;
 static int displayed_low_battery = -1;
+static int battery_haptic_initialized;
+static int battery_haptic_previous_external_power;
+static int battery_haptic_previous_percent;
+static int battery_haptic_previous_percent_valid;
+static int battery_full_haptic_latched;
 
 static int battery_percent_from_curve(float mv, int external_power)
 {
@@ -131,16 +144,102 @@ static const char *battery_symbol_from_percent(int percent)
 
 static int battery_external_power_present(void)
 {
-    /* PA44 is the board VBUS_DET signal and is active high. */
-    return rt_pin_read(VBUS_DET_PIN) != 0;
+    uint8_t detected = 0U;
+
+    if (rt_charge_get_detect_status(&detected) == RT_CHARGE_EOK)
+        return detected != 0U;
+
+#if defined(BSP_CHARGER_INT_PIN) && (BSP_CHARGER_INT_PIN >= 0)
+#ifdef BSP_CHARGER_INT_PIN_ACTIVE_HIGH
+    return rt_pin_read(BSP_CHARGER_INT_PIN) != 0;
+#else
+    return rt_pin_read(BSP_CHARGER_INT_PIN) == 0;
+#endif
+#else
+    return 0;
+#endif
 }
 
-static void battery_vbus_irq_callback(void *parameter)
+static int battery_charge_full_status(int external_power, int *valid)
 {
-    (void)parameter;
+    uint8_t full = 0U;
+
+    *valid = 0;
+    if (!external_power)
+    {
+        *valid = 1;
+        return 0;
+    }
+
+    if (rt_charge_get_full_status(&full) != RT_CHARGE_EOK)
+        return 0;
+
+    *valid = 1;
+    return full != 0U;
+}
+
+static rt_err_t battery_charge_event_callback(rt_device_t device,
+                                              rt_size_t event)
+{
+    (void)device;
+    (void)event;
 
     if (battery_service_ready)
         rt_sem_release(&battery_sample_sem);
+
+    return RT_EOK;
+}
+
+static void battery_update_haptic_feedback(int external_power,
+                                           int full_status_valid,
+                                           int full_status)
+{
+    uint8_t vibration_level = 0U;
+    rt_uint32_t vibration_ms = 0U;
+
+    if (!battery_haptic_initialized)
+    {
+        battery_haptic_previous_external_power = external_power;
+        battery_haptic_previous_percent_valid = battery_percent_valid;
+        battery_haptic_previous_percent = battery_percent;
+        battery_full_haptic_latched =
+            external_power && full_status_valid && full_status;
+        battery_haptic_initialized = 1;
+        return;
+    }
+
+    if (!battery_haptic_previous_external_power && external_power)
+    {
+        vibration_level = BATTERY_PLUG_VIBRATION_LEVEL;
+        vibration_ms = BATTERY_PLUG_VIBRATION_MS;
+        battery_full_haptic_latched = full_status_valid && full_status;
+    }
+    else if (external_power && full_status_valid && full_status &&
+             !battery_full_haptic_latched)
+    {
+        vibration_level = BATTERY_FULL_VIBRATION_LEVEL;
+        vibration_ms = BATTERY_FULL_VIBRATION_MS;
+        battery_full_haptic_latched = 1;
+    }
+    else if (!battery_haptic_previous_external_power && !external_power &&
+             battery_haptic_previous_percent_valid && battery_percent_valid &&
+             battery_haptic_previous_percent > BATTERY_HAPTIC_LOW_PERCENT &&
+             battery_percent <= BATTERY_HAPTIC_LOW_PERCENT)
+    {
+        vibration_level = BATTERY_LOW_VIBRATION_LEVEL;
+        vibration_ms = BATTERY_LOW_VIBRATION_MS;
+    }
+
+    if (!external_power)
+        battery_full_haptic_latched = 0;
+
+    battery_haptic_previous_external_power = external_power;
+    battery_haptic_previous_percent_valid = battery_percent_valid;
+    if (battery_percent_valid)
+        battery_haptic_previous_percent = battery_percent;
+
+    if (vibration_ms > 0U)
+        (void)vibrator_vibrate(vibration_level, vibration_ms);
 }
 
 static void battery_service_sample(void)
@@ -149,8 +248,12 @@ static void battery_service_sample(void)
     float filtered_mv;
     int percent;
     int external_power;
+    int full_status;
+    int full_status_valid;
 
     external_power = battery_external_power_present();
+    full_status = battery_charge_full_status(external_power,
+                                             &full_status_valid);
     mv = adc_read_battery_mv();
     if (mv >= BATTERY_MIN_VALID_MV && mv <= BATTERY_MAX_VALID_MV)
     {
@@ -192,6 +295,9 @@ static void battery_service_sample(void)
         battery_status.voltage_mv = (uint16_t)(filtered_battery_mv + 0.5f);
     rt_mutex_release(&battery_status_lock);
 
+    battery_update_haptic_feedback(external_power, full_status_valid,
+                                   full_status);
+
     if (battery_percent_valid)
         battery_ble_publish_level((uint8_t)battery_percent);
 
@@ -209,7 +315,8 @@ static void battery_sample_thread_entry(void *parameter)
     {
         battery_service_sample();
         if (rt_sem_take(&battery_sample_sem,
-                        rt_tick_from_millisecond(display_power_is_off() ?
+                        rt_tick_from_millisecond(display_power_is_off() &&
+                                                 !battery_external_power_present() ?
                                                  BATTERY_SAMPLE_IDLE_MS :
                                                  BATTERY_SAMPLE_ACTIVE_MS)) == RT_EOK)
         {
@@ -469,7 +576,6 @@ void battery_ui_init(void)
     if (battery_service_ready)
         return;
 
-    rt_pin_mode(VBUS_DET_PIN, PIN_MODE_INPUT);
     rt_memset(&battery_status, 0, sizeof(battery_status));
     if (rt_mutex_init(&battery_status_lock, "battery", RT_IPC_FLAG_PRIO) != RT_EOK)
         return;
@@ -477,11 +583,8 @@ void battery_ui_init(void)
         return;
 
     battery_service_ready = 1;
-    if (rt_pin_attach_irq(VBUS_DET_PIN, PIN_IRQ_MODE_RISING_FALLING,
-                          battery_vbus_irq_callback, RT_NULL) == RT_EOK)
-    {
-        rt_pin_irq_enable(VBUS_DET_PIN, PIN_IRQ_ENABLE);
-    }
+    if (rt_charge_set_rx_ind(battery_charge_event_callback) != RT_CHARGE_EOK)
+        rt_kprintf("battery: charger event subscription unavailable\n");
     lv_timer_create(battery_ui_refresh_timer_cb, BATTERY_UI_REFRESH_PERIOD_MS,
                     NULL);
 

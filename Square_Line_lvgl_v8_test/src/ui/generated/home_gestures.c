@@ -7,8 +7,11 @@
 #include "bluetooth/pan.h"
 #include "bluetooth/music_app.h"
 #include "drivers/display_power.h"
+#include "services/battery_ui.h"
 #include "services/phone_notifications.h"
 #include "services/wrist_wake.h"
+#include "ui/system/system_power_ui.h"
+#include "lv_ext_resource_manager.h"
 
 #define HOME_GESTURE_SCREEN_BG      0x0B0D11
 #define HOME_GESTURE_PANEL_BG       0x050607
@@ -25,6 +28,12 @@
 #define HOME_GESTURE_RED            0xFF5C6C
 #define HOME_GESTURE_ICON_PART_MAX  (6U)
 #define HOME_NOTIFICATION_PREVIEW_MAX_BYTES (96U)
+#define HOME_NOTIFICATION_PRESENT_CHECK_MS  (100U)
+#define HOME_NOTIFICATION_AUTO_SLEEP_MS     (2000U)
+
+LV_IMG_DECLARE(QQ);
+LV_IMG_DECLARE(wechat);
+LV_IMG_DECLARE(smg);
 
 static lv_obj_t *controls_screen;
 static lv_obj_t *notifications_screen;
@@ -44,9 +53,14 @@ static lv_obj_t *control_brightness_slider;
 static lv_obj_t *control_volume_slider;
 static lv_timer_t *control_refresh_timer;
 static lv_timer_t *notifications_refresh_timer;
+static lv_timer_t *notification_present_timer;
 static uint32_t notifications_revision;
 static phone_notification_snapshot_t notifications_snapshot;
 static phone_notification_t notification_detail_item;
+static uint16_t notification_preview_id;
+static uint32_t notification_preview_started_ms;
+static uint32_t notification_preview_activity_revision;
+static uint8_t notification_preview_active;
 static uint8_t control_low_power_enabled;
 
 typedef enum
@@ -71,7 +85,8 @@ static home_control_icon_ref_t control_wrist_icon;
 static home_control_icon_ref_t control_find_phone_icon;
 static home_control_icon_ref_t control_low_power_icon;
 
-static void home_gestures_open_notification_detail(uint16_t id);
+static uint8_t home_gestures_open_notification_detail(uint16_t id,
+                                                      uint8_t mark_read);
 
 static void home_gestures_wait_release(void)
 {
@@ -83,8 +98,10 @@ static void home_gestures_wait_release(void)
 
 static void home_gestures_return_home(lv_scr_load_anim_t animation)
 {
+    int duration = animation == LV_SCR_LOAD_ANIM_NONE ? 0 : 200;
+
     home_gestures_wait_release();
-    _ui_screen_change(&ui_ScreenHome, animation, 200, 0,
+    _ui_screen_change(&ui_ScreenHome, animation, duration, 0,
                       &ui_ScreenHome_screen_init);
 }
 
@@ -638,6 +655,8 @@ static void home_gestures_close_notification_detail(void)
     if (notifications_screen == NULL)
         return;
 
+    notification_preview_active = 0U;
+    notification_preview_id = 0U;
     notification_detail_screen = NULL;
     notification_detail_id = 0U;
     home_gestures_wait_release();
@@ -793,6 +812,21 @@ static const char *home_gestures_notification_source(uint8_t app)
     }
 }
 
+static const void *home_gestures_notification_icon(uint8_t app)
+{
+    switch (app)
+    {
+    case PHONE_NOTIFICATION_APP_SMS:
+        return LV_EXT_IMG_GET(smg);
+    case PHONE_NOTIFICATION_APP_WECHAT:
+        return LV_EXT_IMG_GET(wechat);
+    case PHONE_NOTIFICATION_APP_QQ:
+        return LV_EXT_IMG_GET(QQ);
+    default:
+        return LV_EXT_IMG_GET(smg);
+    }
+}
+
 static uint8_t home_gestures_find_notification(uint16_t id,
                                                phone_notification_t *item)
 {
@@ -880,7 +914,7 @@ static void home_gestures_notification_card_event(lv_event_t *event)
     }
     else if (lv_event_get_code(event) == LV_EVENT_CLICKED)
     {
-        home_gestures_open_notification_detail(id);
+        (void)home_gestures_open_notification_detail(id, 1U);
     }
 }
 
@@ -888,6 +922,7 @@ static void home_gestures_add_notification_card(lv_obj_t *parent,
                                                 const phone_notification_t *item)
 {
     lv_obj_t *card;
+    lv_obj_t *app_icon;
     lv_obj_t *source;
     lv_obj_t *time;
     lv_obj_t *title;
@@ -924,9 +959,15 @@ static void home_gestures_add_notification_card(lv_obj_t *parent,
     lv_obj_add_event_cb(card, home_gestures_notification_card_event,
                         LV_EVENT_ALL, (void *)(uintptr_t)item->id);
 
+    app_icon = lv_img_create(card);
+    lv_img_set_src(app_icon, home_gestures_notification_icon(item->app));
+    lv_obj_set_size(app_icon, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_pos(app_icon, 16, 10);
+    lv_obj_clear_flag(app_icon, LV_OBJ_FLAG_SCROLLABLE);
+
     source = lv_label_create(card);
     lv_label_set_text(source, home_gestures_notification_source(item->app));
-    lv_obj_set_pos(source, 18, 12);
+    lv_obj_set_pos(source, 68, 14);
     lv_obj_set_style_text_font(source, &lv_font_montserrat_16,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(source, lv_color_white(),
@@ -944,8 +985,8 @@ static void home_gestures_add_notification_card(lv_obj_t *parent,
     title = lv_label_create(card);
     lv_label_set_text(title, title_text);
     lv_label_set_long_mode(title, LV_LABEL_LONG_DOT);
-    lv_obj_set_size(title, 318, 29);
-    lv_obj_set_pos(title, 18, 39);
+    lv_obj_set_size(title, 250, 29);
+    lv_obj_set_pos(title, 68, 40);
     lv_obj_set_style_text_font(title, &hsp_font_cjk_22,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(title, lv_color_white(),
@@ -954,8 +995,8 @@ static void home_gestures_add_notification_card(lv_obj_t *parent,
     body = lv_label_create(card);
     lv_label_set_text(body, body_text);
     lv_label_set_long_mode(body, LV_LABEL_LONG_WRAP);
-    lv_obj_set_size(body, 318, 58);
-    lv_obj_set_pos(body, 18, 73);
+    lv_obj_set_size(body, 318, 54);
+    lv_obj_set_pos(body, 18, 77);
     lv_obj_set_style_text_font(body, &hsp_font_cjk_22,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(body, lv_color_white(),
@@ -1045,42 +1086,81 @@ static void home_gestures_notification_detail_event(lv_event_t *event)
     home_gestures_close_notification_detail();
 }
 
-static void home_gestures_open_notification_detail(uint16_t id)
+static void home_gestures_notification_content_event(lv_event_t *event)
+{
+    lv_event_code_t code = lv_event_get_code(event);
+
+    if (code == LV_EVENT_PRESSED && notification_preview_active &&
+        notification_preview_id == notification_detail_id)
+    {
+        notification_preview_active = 0U;
+        notification_preview_id = 0U;
+    }
+    else if (code == LV_EVENT_CLICKED && notification_detail_id != 0U)
+    {
+        (void)phone_notifications_mark_read(notification_detail_id);
+        notification_preview_active = 0U;
+        notification_preview_id = 0U;
+    }
+}
+
+static uint8_t home_gestures_open_notification_detail(uint16_t id,
+                                                      uint8_t mark_read)
 {
     const phone_notification_t *item = &notification_detail_item;
+    lv_obj_t *old_detail_screen;
     lv_obj_t *panel;
+    lv_obj_t *app_icon;
     lv_obj_t *metadata;
     lv_obj_t *content;
     lv_obj_t *title;
     lv_obj_t *body;
 
     if (!home_gestures_find_notification(id, &notification_detail_item))
-        return;
+        return 0U;
 
-    if (notification_detail_screen != NULL)
-        lv_obj_del(notification_detail_screen);
+    if (mark_read)
+    {
+        (void)phone_notifications_mark_read(id);
+        notification_preview_active = 0U;
+        notification_preview_id = 0U;
+    }
+
+    old_detail_screen = notification_detail_screen;
     notification_detail_screen = NULL;
     notification_detail_id = id;
     panel = home_gestures_create_panel(&notification_detail_screen);
     home_gestures_add_header(panel, "", "MESSAGE",
                              home_gestures_notification_detail_back);
 
+    app_icon = lv_img_create(panel);
+    lv_img_set_src(app_icon, home_gestures_notification_icon(item->app));
+    lv_obj_set_size(app_icon, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_pos(app_icon, 20, 66);
+    lv_obj_clear_flag(app_icon, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(app_icon, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(app_icon, home_gestures_notification_content_event,
+                        LV_EVENT_ALL, NULL);
+
     metadata = lv_label_create(panel);
     lv_label_set_text_fmt(metadata, "%s    %02u:%02u",
                           home_gestures_notification_source(item->app),
                           (unsigned int)item->hour, (unsigned int)item->minute);
-    lv_obj_set_pos(metadata, 20, 78);
+    lv_obj_set_pos(metadata, 72, 77);
     lv_obj_set_style_text_font(metadata, &lv_font_montserrat_18,
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(metadata, lv_color_white(),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_add_flag(metadata, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(metadata, home_gestures_notification_content_event,
+                        LV_EVENT_ALL, NULL);
 
     content = lv_obj_create(panel);
-    lv_obj_set_size(content, 354, 326);
-    lv_obj_set_pos(content, 18, 106);
+    lv_obj_set_size(content, 354, 316);
+    lv_obj_set_pos(content, 18, 116);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(content, LV_DIR_VER);
-    lv_obj_add_flag(content, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_flag(content, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_set_style_radius(content, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(content, 14, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(content, 18, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -1094,6 +1174,8 @@ static void home_gestures_open_notification_detail(uint16_t id)
                               LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(content, LV_OPA_50,
                             LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(content, home_gestures_notification_content_event,
+                        LV_EVENT_ALL, NULL);
 
     title = lv_label_create(content);
     lv_label_set_text(title, item->title_len > 0U ? item->title :
@@ -1105,6 +1187,7 @@ static void home_gestures_open_notification_detail(uint16_t id)
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(title, lv_color_white(),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_add_flag(title, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     body = lv_label_create(content);
     lv_label_set_text(body, item->body_len > 0U ? item->body : "New notification");
@@ -1115,13 +1198,19 @@ static void home_gestures_open_notification_detail(uint16_t id)
                                LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(body, lv_color_white(),
                                 LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_add_flag(body, LV_OBJ_FLAG_EVENT_BUBBLE);
 
     lv_obj_add_event_cb(notification_detail_screen,
                         home_gestures_notification_detail_event,
                         LV_EVENT_GESTURE, NULL);
     home_gestures_wait_release();
-    lv_scr_load_anim(notification_detail_screen, LV_SCR_LOAD_ANIM_MOVE_LEFT,
-                     200, 0, false);
+    lv_scr_load_anim(notification_detail_screen,
+                     mark_read ? LV_SCR_LOAD_ANIM_MOVE_LEFT :
+                                 LV_SCR_LOAD_ANIM_NONE,
+                     mark_read ? 200U : 0U, 0, false);
+    if (old_detail_screen != NULL)
+        lv_obj_del_delayed(old_detail_screen, mark_read ? 250U : 1U);
+    return 1U;
 }
 
 static void home_gestures_create_controls(void)
@@ -1256,6 +1345,101 @@ static void home_gestures_create_notifications(void)
         home_gestures_notifications_refresh_timer_cb, 800, NULL);
 }
 
+static void home_gestures_show_notification_preview(uint16_t id)
+{
+    if (notifications_screen == NULL)
+        home_gestures_create_notifications();
+
+    if (!home_gestures_open_notification_detail(id, 0U))
+        return;
+
+    display_power_wake();
+    notification_preview_id = id;
+    notification_preview_started_ms = lv_tick_get();
+    notification_preview_activity_revision =
+        display_power_get_user_activity_revision();
+    notification_preview_active = 1U;
+}
+
+static void home_gestures_notification_present_timer_cb(lv_timer_t *timer)
+{
+    battery_status_t battery_status;
+    lv_obj_t *expired_screen;
+    uint16_t pending_id;
+
+    (void)timer;
+
+    battery_ui_get_status(&battery_status);
+    if (battery_status.valid && battery_status.critical_confirmed &&
+        !battery_status.external_power_present)
+    {
+        if (notification_preview_active)
+        {
+            expired_screen = notification_detail_screen;
+            notification_preview_active = 0U;
+            notification_preview_id = 0U;
+            notification_detail_screen = NULL;
+            notification_detail_id = 0U;
+            home_gestures_return_home(LV_SCR_LOAD_ANIM_NONE);
+            if (expired_screen != NULL)
+                lv_obj_del_delayed(expired_screen, 1U);
+        }
+        return;
+    }
+
+    if (system_power_ui_is_open())
+    {
+        notification_preview_active = 0U;
+        notification_preview_id = 0U;
+        return;
+    }
+
+    if (phone_notifications_take_pending_preview(&pending_id))
+    {
+        home_gestures_show_notification_preview(pending_id);
+        return;
+    }
+
+    if (!notification_preview_active)
+        return;
+
+    if (display_power_get_user_activity_revision() !=
+        notification_preview_activity_revision ||
+        lv_scr_act() != notification_detail_screen ||
+        notification_detail_id != notification_preview_id)
+    {
+        notification_preview_active = 0U;
+        notification_preview_id = 0U;
+        return;
+    }
+
+    if (lv_tick_elaps(notification_preview_started_ms) <
+        HOME_NOTIFICATION_AUTO_SLEEP_MS)
+    {
+        return;
+    }
+
+    expired_screen = notification_detail_screen;
+    notification_preview_active = 0U;
+    notification_preview_id = 0U;
+    notification_detail_screen = NULL;
+    notification_detail_id = 0U;
+    home_gestures_return_home(LV_SCR_LOAD_ANIM_NONE);
+    if (expired_screen != NULL)
+        lv_obj_del_delayed(expired_screen, 1U);
+    display_power_sleep();
+}
+
+void home_gestures_init(void)
+{
+    if (notification_present_timer != NULL)
+        return;
+
+    notification_present_timer = lv_timer_create(
+        home_gestures_notification_present_timer_cb,
+        HOME_NOTIFICATION_PRESENT_CHECK_MS, NULL);
+}
+
 void home_gestures_open_controls(void)
 {
     if (controls_screen == NULL)
@@ -1317,6 +1501,11 @@ void home_gestures_destroy(void)
         lv_timer_del(notifications_refresh_timer);
         notifications_refresh_timer = NULL;
     }
+    if (notification_present_timer != NULL)
+    {
+        lv_timer_del(notification_present_timer);
+        notification_present_timer = NULL;
+    }
 
     if (controls_screen != NULL)
         lv_obj_del(controls_screen);
@@ -1331,6 +1520,10 @@ void home_gestures_destroy(void)
     notifications_summary = NULL;
     notification_detail_screen = NULL;
     notification_detail_id = 0U;
+    notification_preview_id = 0U;
+    notification_preview_started_ms = 0U;
+    notification_preview_activity_revision = 0U;
+    notification_preview_active = 0U;
     notifications_revision = 0U;
     control_bluetooth_value = NULL;
     control_silent_value = NULL;

@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+void home_gestures_init(void);
 void home_gestures_open_controls(void);
 void home_gestures_open_notifications(void);
 uint8_t home_gestures_handle_back(void);

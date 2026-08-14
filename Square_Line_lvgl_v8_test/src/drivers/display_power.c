@@ -21,12 +21,19 @@ static int display_is_off;
 static uint8_t display_forced_off;
 static void (*touch_read_cb)(lv_indev_drv_t *drv, lv_indev_data_t *data);
 static uint8_t suppress_touch_until_release;
+static uint8_t touch_was_pressed;
+static uint32_t user_activity_revision;
 
 static void display_power_touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
     uint8_t was_off = display_is_off;
+    uint8_t is_pressed;
 
     touch_read_cb(drv, data);
+    is_pressed = data->state == LV_INDEV_STATE_PRESSED ? 1U : 0U;
+    if (is_pressed != touch_was_pressed)
+        display_power_note_user_activity();
+    touch_was_pressed = is_pressed;
 
     if (suppress_touch_until_release)
     {
@@ -102,6 +109,11 @@ void display_power_notify_activity(void)
     display_forced_off = 0U;
 }
 
+void display_power_note_user_activity(void)
+{
+    user_activity_revision++;
+}
+
 void display_power_wake(void)
 {
     display_power_notify_activity();
@@ -115,6 +127,11 @@ void display_power_sleep(void)
 int display_power_is_off(void)
 {
     return display_is_off;
+}
+
+uint32_t display_power_get_user_activity_revision(void)
+{
+    return user_activity_revision;
 }
 
 uint8_t display_power_get_brightness(void)
