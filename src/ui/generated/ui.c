@@ -103,6 +103,7 @@ void ui_init(void)
     ui_Muyu_screen_init();
     ui_ScreenMusic_screen_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
+    home_gestures_init();
     ui____initial_actions0 = lv_obj_create(NULL);
     lv_disp_load_scr(ui_ScreenHome);
 }

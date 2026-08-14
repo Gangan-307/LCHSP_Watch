@@ -79,6 +79,7 @@ static void input_wake_handle_pressed(wake_key_t *key)
 {
     key->pressed_at = lv_tick_get();
     key->long_press_sent = 0U;
+    display_power_note_user_activity();
 
     if (display_power_is_off())
     {
@@ -93,6 +94,8 @@ static void input_wake_handle_pressed(wake_key_t *key)
 
 static void input_wake_handle_released(wake_key_t *key)
 {
+    display_power_note_user_activity();
+
     if (!key->suppress_until_release && !key->long_press_sent &&
         event_handler != NULL)
         event_handler(key->key, INPUT_WAKE_EVENT_SHORT_PRESS);

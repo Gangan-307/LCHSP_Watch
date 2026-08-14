@@ -189,7 +189,7 @@ static void ui_home_notification_update(void)
     if (home_notification_dot == NULL)
         return;
 
-    visible = phone_notifications_get_count() > 0U ? 1 : 0;
+    visible = phone_notifications_get_unread_count() > 0U ? 1 : 0;
     if (home_notification_visible == visible)
         return;
 
