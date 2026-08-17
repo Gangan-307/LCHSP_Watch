@@ -1,5 +1,0 @@
-source "$SIFLI_SDK/Kconfig.v2"
-source "$SIFLI_SDK/customer/boards/Kconfig.v2"
-source "D:/iotproject/LCHSP/OpenSiFli/githubsdk/SiFli-SDK/v2.5/SiFli-SDK-V2.5/customer/boards/sf32lb52-lchspi-ulp/lcpu/Kconfig.board"
-osource "D:/iotproject/LCHSP/OpenSiFli/githubsdk/SiFli-SDK/v2.5/SiFli-SDK-V2.5/example/ble/lcpu_general/project/common/sf-pkgs/Kconfig.conandeps"
-source "D:/iotproject/LCHSP/OpenSiFli/githubsdk/SiFli-SDK/v2.5/SiFli-SDK-V2.5/example/ble/lcpu_general/project/common/Kconfig.proj"
