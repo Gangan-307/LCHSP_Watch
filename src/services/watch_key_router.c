@@ -2,7 +2,9 @@
 #include "bluetooth/music_app.h"
 #include "drivers/display_power.h"
 #include "drivers/vibrator.h"
+#include "services/alarm_service.h"
 #include "services/input_wake.h"
+#include "ui/alarm/alarm_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
@@ -34,11 +36,19 @@ static void watch_key_router_back(void)
         ui_MapDetails_return();
     else if (active_screen == ui_Muyu)
         ui_Muyu_return();
+    else if (active_screen == ui_Alarm)
+        ui_Alarm_return();
 }
 
 static void watch_key_router_event(input_wake_key_t key,
                                    input_wake_event_t event)
 {
+    if (alarm_service_is_ringing())
+    {
+        (void)ui_Alarm_handle_key(key, event);
+        return;
+    }
+
     if (system_power_ui_is_open())
     {
         if (key == INPUT_WAKE_KEY1)
@@ -50,6 +60,9 @@ static void watch_key_router_event(input_wake_key_t key,
         }
         return;
     }
+
+    if (ui_Alarm_handle_key(key, event))
+        return;
 
     if (event == INPUT_WAKE_EVENT_LONG_PRESS)
     {

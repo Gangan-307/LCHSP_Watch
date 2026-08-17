@@ -80,6 +80,10 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Muyu_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_ALARM:
+        ui_Alarm_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_WORLD_CLOCK:
         _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
                           &ui_ScreenHome_screen_init);
@@ -102,6 +106,7 @@ void ui_init(void)
     ui_RgbLight_screen_init();
     ui_Muyu_screen_init();
     ui_ScreenMusic_screen_init();
+    ui_Alarm_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
     home_gestures_init();
     ui____initial_actions0 = lv_obj_create(NULL);
@@ -117,6 +122,7 @@ void ui_destroy(void)
     ui_Muyu_screen_destroy();
     ui_BluetoothSettings_screen_destroy();
     ui_ScreenMusic_screen_destroy();
+    ui_Alarm_screen_destroy();
     ui_AppGrid_screen_destroy();
     ui_WeatherDetails_screen_destroy();
     ui_MapDetails_screen_destroy();

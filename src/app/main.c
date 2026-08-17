@@ -11,6 +11,7 @@
 #include "littlevgl2rtt.h"
 #include "lv_ex_data.h"
 #include "ui/generated/ui.h"
+#include "services/alarm_service.h"
 #include "services/rtc.h"
 #include "services/phone_sync.h"
 #include "services/phone_notifications.h"
@@ -83,6 +84,7 @@ int main(void)
     adc_init();
     battery_ui_init();
     display_power_init();
+    alarm_service_init();
     input_wake_init();
     watch_key_router_init();
     wrist_wake_init();

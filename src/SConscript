@@ -19,6 +19,7 @@ module_dirs = [
     'bluetooth',
     'ui/details',
     'ui/music',
+    'ui/alarm',
     'ui/app_grid',
     'ui/system',
     'ui/generated',
