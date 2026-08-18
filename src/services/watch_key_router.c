@@ -5,10 +5,12 @@
 #include "services/alarm_service.h"
 #include "services/input_wake.h"
 #include "ui/alarm/alarm_ui.h"
+#include "ui/calculator/calculator_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
 #include "ui/generated/home_gestures.h"
+#include "ui/water/water_ui.h"
 #include "ui/generated/ui.h"
 #include "ui/system/system_power_ui.h"
 #include "watch_key_router.h"
@@ -34,8 +36,12 @@ static void watch_key_router_back(void)
         ui_WeatherDetails_return();
     else if (active_screen == ui_MapDetails)
         ui_MapDetails_return();
+    else if (active_screen == ui_Calculator)
+        ui_Calculator_return();
     else if (active_screen == ui_Muyu)
         ui_Muyu_return();
+    else if (active_screen == ui_Water)
+        ui_Water_return();
     else if (active_screen == ui_Alarm)
         ui_Alarm_return();
 }
@@ -60,6 +66,9 @@ static void watch_key_router_event(input_wake_key_t key,
         }
         return;
     }
+
+    if (ui_Water_handle_key(key, event))
+        return;
 
     if (ui_Alarm_handle_key(key, event))
         return;

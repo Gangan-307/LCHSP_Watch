@@ -18,6 +18,8 @@ module_dirs = [
     'services',
     'bluetooth',
     'ui/details',
+    'ui/calculator',
+    'ui/water',
     'ui/music',
     'ui/alarm',
     'ui/app_grid',
