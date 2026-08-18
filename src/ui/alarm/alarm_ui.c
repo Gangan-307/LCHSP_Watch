@@ -29,23 +29,32 @@ typedef enum
 {
     ALARM_UI_LIST,
     ALARM_UI_EDITOR,
+    ALARM_UI_TIME,
+    ALARM_UI_REPEAT,
+    ALARM_UI_CUSTOM_REPEAT,
     ALARM_UI_RING,
 } alarm_ui_state_t;
 
 typedef enum
 {
-    ALARM_ADJUST_HOUR_UP,
-    ALARM_ADJUST_HOUR_DOWN,
-    ALARM_ADJUST_MINUTE_UP,
-    ALARM_ADJUST_MINUTE_DOWN,
-} alarm_adjust_t;
+    ALARM_ROLLER_HOUR,
+    ALARM_ROLLER_MINUTE,
+} alarm_roller_field_t;
+
+typedef enum
+{
+    ALARM_REPEAT_CHOICE_EVERY_DAY,
+    ALARM_REPEAT_CHOICE_WORKDAY,
+    ALARM_REPEAT_CHOICE_CUSTOM,
+} alarm_repeat_choice_t;
 
 lv_obj_t *ui_Alarm = NULL;
 
 static lv_obj_t *alarm_panel;
-static lv_obj_t *editor_hour_label;
-static lv_obj_t *editor_minute_label;
 static lv_obj_t *editor_day_buttons[7];
+static lv_obj_t *editor_repeat_summary;
+static lv_obj_t *editor_hour_roller;
+static lv_obj_t *editor_minute_roller;
 static alarm_ui_state_t alarm_ui_state = ALARM_UI_LIST;
 static alarm_entry_t editor_entry;
 static uint8_t editor_index = ALARM_MAX_INDEX;
@@ -55,6 +64,9 @@ static uint8_t refresh_queued;
 static void alarm_ui_build_current(void);
 static void alarm_ui_show_list(void);
 static void alarm_ui_show_editor(uint8_t index);
+static void alarm_ui_show_time(void);
+static void alarm_ui_show_repeat(void);
+static void alarm_ui_show_custom_repeat(void);
 static void alarm_ui_show_ring(uint8_t index);
 
 static void alarm_ui_wait_release(void)
@@ -87,10 +99,9 @@ static void alarm_ui_style_button(lv_obj_t *button, uint32_t color,
                                   uint32_t pressed, uint32_t border,
                                   lv_coord_t radius)
 {
+    (void)border;
     alarm_ui_style_object(button, color, LV_OPA_COVER, radius);
-    lv_obj_set_style_border_color(button, lv_color_hex(border),
-                                  LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(button, 1,
+    lv_obj_set_style_border_width(button, 0,
                                   LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(button, lv_color_hex(pressed),
                               LV_PART_MAIN | LV_STATE_PRESSED);
@@ -123,7 +134,7 @@ static lv_obj_t *alarm_ui_add_text_button(lv_obj_t *parent, lv_coord_t x,
 
     lv_obj_set_size(button, width, height);
     lv_obj_set_pos(button, x, y);
-    alarm_ui_style_button(button, color, ALARM_CARD_PRESSED, border, 8);
+    alarm_ui_style_button(button, color, ALARM_CARD_PRESSED, border, 22);
     label = alarm_ui_add_label(button, text, font, ALARM_TEXT);
     lv_obj_center(label);
     if (callback != NULL)
@@ -261,10 +272,10 @@ static void alarm_ui_create_list_row(lv_obj_t *parent, uint8_t index,
         return;
 
     row = lv_btn_create(parent);
-    lv_obj_set_size(row, 342, 82);
+    lv_obj_set_size(row, 342, 100);
     lv_obj_set_pos(row, 0, y);
     alarm_ui_style_button(row, ALARM_CARD, ALARM_CARD_PRESSED,
-                          ALARM_BORDER, 8);
+                          ALARM_BORDER, 30);
     lv_obj_set_style_bg_opa(row, entry.enabled ? LV_OPA_COVER : LV_OPA_70,
                             LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_add_event_cb(row, alarm_ui_card_event, LV_EVENT_CLICKED,
@@ -274,17 +285,17 @@ static void alarm_ui_create_list_row(lv_obj_t *parent, uint8_t index,
              entry.hour, entry.minute);
     time_label = alarm_ui_add_label(row, time_text, &lv_font_montserrat_36,
                                     entry.enabled ? ALARM_TEXT : ALARM_QUIET);
-    lv_obj_set_pos(time_label, 17, 7);
+    lv_obj_set_pos(time_label, 17, 10);
 
     alarm_ui_format_repeat(entry.repeat_mask, repeat_text,
                            sizeof(repeat_text));
     repeat_label = alarm_ui_add_label(row, repeat_text, &hsp_font_cjk_22,
                                       entry.enabled ? ALARM_MUTED : ALARM_QUIET);
-    lv_obj_set_pos(repeat_label, 19, 48);
+    lv_obj_set_pos(repeat_label, 19, 62);
 
     toggle = lv_switch_create(row);
-    lv_obj_set_size(toggle, 54, 30);
-    lv_obj_set_pos(toggle, 270, 26);
+    lv_obj_set_size(toggle, 64, 36);
+    lv_obj_set_pos(toggle, 260, 32);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(ALARM_QUIET),
                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(ALARM_AMBER),
@@ -309,15 +320,6 @@ static void alarm_ui_build_list(void)
     char next_text[64];
 
     alarm_ui_add_header("闹钟", 0U);
-    add = alarm_ui_add_text_button(alarm_panel, 320, 12, 48, 44,
-                                   "+", ALARM_AMBER_DARK, ALARM_AMBER,
-                                   &lv_font_montserrat_24,
-                                   alarm_ui_add_event);
-    lv_obj_set_style_text_color(lv_obj_get_child(add, 0),
-                                lv_color_hex(ALARM_AMBER),
-                                LV_PART_MAIN | LV_STATE_DEFAULT);
-    if (count >= ALARM_SERVICE_MAX_ALARMS)
-        lv_obj_add_state(add, LV_STATE_DISABLED);
 
     if (alarm_service_get_next(&next, NULL, &minutes) == RT_EOK)
         snprintf(next_text, sizeof(next_text), "NEXT  %02u:%02u   %lu MIN",
@@ -329,7 +331,7 @@ static void alarm_ui_build_list(void)
     lv_obj_set_pos(subtitle, 25, 61);
 
     list = lv_obj_create(alarm_panel);
-    lv_obj_set_size(list, 342, 352);
+    lv_obj_set_size(list, 342, 214);
     lv_obj_set_pos(list, 24, 84);
     alarm_ui_style_object(list, ALARM_PANEL, LV_OPA_TRANSP, 0);
     lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
@@ -339,56 +341,110 @@ static void alarm_ui_build_list(void)
 
     if (count == 0U)
     {
-        lv_obj_t *icon = alarm_ui_add_label(list, LV_SYMBOL_AUDIO,
+        lv_obj_t *icon = alarm_ui_add_label(list, LV_SYMBOL_BELL,
                                             &lv_font_montserrat_48,
                                             ALARM_AMBER);
         lv_obj_t *empty = alarm_ui_add_label(list, "还没有闹钟",
                                              &hsp_font_cjk_22, ALARM_TEXT);
-        lv_obj_t *hint = alarm_ui_add_label(list, "点击右上角 + 添加",
+        lv_obj_t *hint = alarm_ui_add_label(list, "点击下方加号",
                                             &hsp_font_cjk_22, ALARM_MUTED);
-        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 66);
-        lv_obj_align(empty, LV_ALIGN_TOP_MID, 0, 137);
-        lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 180);
-        return;
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 14);
+        lv_obj_align(empty, LV_ALIGN_TOP_MID, 0, 76);
+        lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 119);
     }
-
-    for (index = 0U; index < count; index++)
-        alarm_ui_create_list_row(list, index, (lv_coord_t)index * 94);
-    lv_obj_set_height(list, 352);
-}
-
-static void alarm_ui_update_editor_time(void)
-{
-    char text[4];
-
-    if (editor_hour_label != NULL)
-    {
-        snprintf(text, sizeof(text), "%02u", editor_entry.hour);
-        lv_label_set_text(editor_hour_label, text);
-    }
-    if (editor_minute_label != NULL)
-    {
-        snprintf(text, sizeof(text), "%02u", editor_entry.minute);
-        lv_label_set_text(editor_minute_label, text);
-    }
-}
-
-static void alarm_ui_adjust_event(lv_event_t *event)
-{
-    alarm_adjust_t action;
-
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
-        return;
-    action = (alarm_adjust_t)(uintptr_t)lv_event_get_user_data(event);
-    if (action == ALARM_ADJUST_HOUR_UP)
-        editor_entry.hour = (uint8_t)((editor_entry.hour + 1U) % 24U);
-    else if (action == ALARM_ADJUST_HOUR_DOWN)
-        editor_entry.hour = (uint8_t)((editor_entry.hour + 23U) % 24U);
-    else if (action == ALARM_ADJUST_MINUTE_UP)
-        editor_entry.minute = (uint8_t)((editor_entry.minute + 1U) % 60U);
     else
-        editor_entry.minute = (uint8_t)((editor_entry.minute + 59U) % 60U);
-    alarm_ui_update_editor_time();
+    {
+        for (index = 0U; index < count; index++)
+            alarm_ui_create_list_row(list, index, (lv_coord_t)index * 112);
+    }
+
+    add = alarm_ui_add_text_button(alarm_panel, 135, 310, 120, 120,
+                                   "+", ALARM_AMBER, ALARM_AMBER,
+                                   &lv_font_montserrat_48,
+                                   alarm_ui_add_event);
+    lv_obj_set_style_radius(add, 60, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(lv_obj_get_child(add, 0),
+                                lv_color_hex(ALARM_BG),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    if (count >= ALARM_SERVICE_MAX_ALARMS)
+    {
+        lv_obj_add_state(add, LV_STATE_DISABLED);
+        lv_obj_set_style_bg_color(add, lv_color_hex(ALARM_QUIET),
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
+    }
+}
+
+static const char alarm_hour_options[] =
+    "00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n10\n11\n"
+    "12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23";
+
+static const char alarm_minute_options[] =
+    "00\n01\n02\n03\n04\n05\n06\n07\n08\n09\n"
+    "10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n"
+    "20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n"
+    "30\n31\n32\n33\n34\n35\n36\n37\n38\n39\n"
+    "40\n41\n42\n43\n44\n45\n46\n47\n48\n49\n"
+    "50\n51\n52\n53\n54\n55\n56\n57\n58\n59";
+
+static void alarm_ui_roller_event(lv_event_t *event)
+{
+    lv_obj_t *roller;
+    alarm_roller_field_t field;
+
+    if (lv_event_get_code(event) != LV_EVENT_VALUE_CHANGED)
+        return;
+
+    roller = lv_event_get_target(event);
+    field = (alarm_roller_field_t)(uintptr_t)lv_event_get_user_data(event);
+    if (field == ALARM_ROLLER_HOUR)
+        editor_entry.hour = (uint8_t)lv_roller_get_selected(roller);
+    else
+        editor_entry.minute = (uint8_t)lv_roller_get_selected(roller);
+}
+
+static lv_obj_t *alarm_ui_add_time_roller(lv_obj_t *parent,
+                                                 lv_coord_t x_offset,
+                                                 alarm_roller_field_t field)
+{
+    lv_obj_t *roller = lv_roller_create(parent);
+
+    lv_roller_set_options(roller,
+                          field == ALARM_ROLLER_HOUR ? alarm_hour_options :
+                                                       alarm_minute_options,
+                          LV_ROLLER_MODE_NORMAL);
+    lv_obj_set_style_text_font(roller, &lv_font_montserrat_48,
+                               LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(roller, &lv_font_montserrat_48,
+                               LV_PART_SELECTED | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(roller, lv_color_hex(ALARM_MUTED),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(roller, lv_color_hex(ALARM_TEXT),
+                                LV_PART_SELECTED | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(roller, LV_OPA_TRANSP,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(roller, LV_OPA_TRANSP,
+                            LV_PART_SELECTED | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(roller, 0,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(roller, LV_TEXT_ALIGN_CENTER,
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(roller, 0,
+                                     LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(roller, 0,
+                                     LV_PART_SELECTED | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(roller, 0,
+                             LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_scrollbar_mode(roller, LV_SCROLLBAR_MODE_OFF);
+    lv_roller_set_visible_row_count(roller, 3);
+    lv_obj_set_width(roller, 140);
+    lv_obj_align(roller, LV_ALIGN_CENTER, x_offset, 0);
+    lv_roller_set_selected(roller,
+                           field == ALARM_ROLLER_HOUR ? editor_entry.hour :
+                                                        editor_entry.minute,
+                           LV_ANIM_OFF);
+    lv_obj_add_event_cb(roller, alarm_ui_roller_event,
+                        LV_EVENT_VALUE_CHANGED, (void *)(uintptr_t)field);
+    return roller;
 }
 
 static void alarm_ui_style_day_button(lv_obj_t *button, uint8_t selected)
@@ -397,9 +453,7 @@ static void alarm_ui_style_day_button(lv_obj_t *button, uint8_t selected)
                               lv_color_hex(selected ? ALARM_AMBER_DARK :
                                                    ALARM_CARD),
                               LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(button,
-                                  lv_color_hex(selected ? ALARM_AMBER :
-                                                       ALARM_BORDER),
+    lv_obj_set_style_border_width(button, 0,
                                   LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(lv_obj_get_child(button, 0),
                                 lv_color_hex(selected ? ALARM_AMBER :
@@ -409,6 +463,7 @@ static void alarm_ui_style_day_button(lv_obj_t *button, uint8_t selected)
 
 static void alarm_ui_day_event(lv_event_t *event)
 {
+    char repeat_text[48];
     uint8_t day;
     uint8_t mask;
 
@@ -419,13 +474,12 @@ static void alarm_ui_day_event(lv_event_t *event)
     editor_entry.repeat_mask ^= mask;
     alarm_ui_style_day_button(editor_day_buttons[day],
                               (editor_entry.repeat_mask & mask) != 0U);
-}
-
-static void alarm_ui_enabled_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_VALUE_CHANGED)
-        editor_entry.enabled = lv_obj_has_state(lv_event_get_target(event),
-                                                LV_STATE_CHECKED) ? 1U : 0U;
+    if (editor_repeat_summary != NULL)
+    {
+        alarm_ui_format_repeat(editor_entry.repeat_mask, repeat_text,
+                               sizeof(repeat_text));
+        lv_label_set_text(editor_repeat_summary, repeat_text);
+    }
 }
 
 static rt_err_t alarm_ui_commit(uint8_t *saved_index)
@@ -455,131 +509,259 @@ static void alarm_ui_save_event(lv_event_t *event)
 
 static void alarm_ui_delete_event(lv_event_t *event)
 {
-    if (lv_event_get_code(event) != LV_EVENT_CLICKED ||
-        editor_index == ALARM_MAX_INDEX)
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
         return;
+    if (editor_index == ALARM_MAX_INDEX)
+    {
+        alarm_ui_show_list();
+        return;
+    }
     if (alarm_service_remove(editor_index) == RT_EOK)
         alarm_ui_show_list();
 }
 
-static void alarm_ui_preview_event(lv_event_t *event)
+static void alarm_ui_time_open_event(lv_event_t *event)
 {
-    uint8_t index;
+    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+        alarm_ui_show_time();
+}
+
+static void alarm_ui_time_done_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+    if (editor_hour_roller != NULL && editor_minute_roller != NULL)
+    {
+        editor_entry.hour = (uint8_t)lv_roller_get_selected(editor_hour_roller);
+        editor_entry.minute = (uint8_t)lv_roller_get_selected(editor_minute_roller);
+    }
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_EDITOR;
+    alarm_ui_build_current();
+}
+
+static void alarm_ui_repeat_open_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+        alarm_ui_show_repeat();
+}
+
+static void alarm_ui_repeat_choice_event(lv_event_t *event)
+{
+    alarm_repeat_choice_t choice;
 
     if (lv_event_get_code(event) != LV_EVENT_CLICKED)
         return;
-    if (alarm_ui_commit(&index) == RT_EOK)
-        (void)alarm_service_preview(index);
+    choice = (alarm_repeat_choice_t)(uintptr_t)lv_event_get_user_data(event);
+    if (choice == ALARM_REPEAT_CHOICE_CUSTOM)
+    {
+        alarm_ui_show_custom_repeat();
+        return;
+    }
+
+    editor_entry.repeat_mask = choice == ALARM_REPEAT_CHOICE_EVERY_DAY ?
+                               ALARM_REPEAT_EVERY_DAY :
+                               (ALARM_REPEAT_MONDAY | ALARM_REPEAT_TUESDAY |
+                                ALARM_REPEAT_WEDNESDAY | ALARM_REPEAT_THURSDAY |
+                                ALARM_REPEAT_FRIDAY);
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_EDITOR;
+    alarm_ui_build_current();
 }
 
-static void alarm_ui_add_adjust_button(lv_obj_t *parent, lv_coord_t x,
-                                       lv_coord_t y, const char *text,
-                                       alarm_adjust_t action)
+static void alarm_ui_custom_done_event(lv_event_t *event)
 {
-    lv_obj_t *button = alarm_ui_add_text_button(parent, x, y, 58, 38,
-                                                text, ALARM_CARD,
-                                                ALARM_BORDER,
-                                                &lv_font_montserrat_24,
-                                                NULL);
-    lv_obj_add_event_cb(button, alarm_ui_adjust_event, LV_EVENT_CLICKED,
-                        (void *)(uintptr_t)action);
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_EDITOR;
+    alarm_ui_build_current();
 }
 
 static void alarm_ui_build_editor(void)
 {
-    static const char *day_names[7] = {"一", "二", "三", "四", "五", "六", "日"};
-    lv_obj_t *time_card;
+    lv_obj_t *time_button;
+    lv_obj_t *time_title;
+    lv_obj_t *time_value;
+    lv_obj_t *time_arrow;
+    lv_obj_t *repeat_button;
+    lv_obj_t *repeat_label;
+    lv_obj_t *repeat_value;
+    lv_obj_t *repeat_arrow;
+    lv_obj_t *confirm_button;
+    lv_obj_t *delete_button;
+    char time_text[8];
+    char repeat_text[48];
+
+    alarm_ui_add_header("编辑闹钟", 0U);
+
+    time_button = lv_btn_create(alarm_panel);
+    lv_obj_set_size(time_button, 342, 110);
+    lv_obj_set_pos(time_button, 24, 72);
+    alarm_ui_style_button(time_button, ALARM_CARD, ALARM_CARD_PRESSED,
+                          ALARM_CARD, 32);
+    lv_obj_add_event_cb(time_button, alarm_ui_time_open_event,
+                        LV_EVENT_CLICKED, NULL);
+    time_title = alarm_ui_add_label(time_button, "时间", &hsp_font_cjk_22,
+                                    ALARM_MUTED);
+    lv_obj_set_pos(time_title, 18, 10);
+    snprintf(time_text, sizeof(time_text), "%02u:%02u",
+             editor_entry.hour, editor_entry.minute);
+    time_value = alarm_ui_add_label(time_button, time_text,
+                                    &lv_font_montserrat_48, ALARM_TEXT);
+    lv_obj_set_pos(time_value, 18, 43);
+    time_arrow = alarm_ui_add_label(time_button, LV_SYMBOL_RIGHT,
+                                    &lv_font_montserrat_20, ALARM_AMBER);
+    lv_obj_set_pos(time_arrow, 307, 53);
+
+    repeat_button = lv_btn_create(alarm_panel);
+    lv_obj_set_size(repeat_button, 342, 110);
+    lv_obj_set_pos(repeat_button, 24, 194);
+    alarm_ui_style_button(repeat_button, ALARM_CARD, ALARM_CARD_PRESSED,
+                          ALARM_CARD, 30);
+    lv_obj_add_event_cb(repeat_button, alarm_ui_repeat_open_event,
+                        LV_EVENT_CLICKED, NULL);
+    repeat_label = alarm_ui_add_label(repeat_button, "重复",
+                                      &hsp_font_cjk_22, ALARM_MUTED);
+    lv_obj_set_pos(repeat_label, 18, 10);
+    alarm_ui_format_repeat(editor_entry.repeat_mask, repeat_text,
+                           sizeof(repeat_text));
+    repeat_value = alarm_ui_add_label(repeat_button, repeat_text,
+                                      &hsp_font_cjk_22, ALARM_AMBER);
+    lv_obj_set_pos(repeat_value, 18, 59);
+    repeat_arrow = alarm_ui_add_label(repeat_button, LV_SYMBOL_RIGHT,
+                                      &lv_font_montserrat_20, ALARM_AMBER);
+    lv_obj_set_pos(repeat_arrow, 307, 48);
+
+    confirm_button = alarm_ui_add_text_button(
+        alarm_panel, 61, 316, 110, 110, LV_SYMBOL_OK,
+        ALARM_BLUE, ALARM_BLUE,
+        &lv_font_montserrat_36, alarm_ui_save_event);
+    lv_obj_set_style_radius(confirm_button, 55,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(lv_obj_get_child(confirm_button, 0),
+                                lv_color_hex(ALARM_TEXT),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    delete_button = alarm_ui_add_text_button(
+        alarm_panel, 219, 316, 110, 110, LV_SYMBOL_TRASH,
+        ALARM_RED, ALARM_RED,
+        &lv_font_montserrat_36, alarm_ui_delete_event);
+    lv_obj_set_style_radius(delete_button, 55,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(lv_obj_get_child(delete_button, 0),
+                                lv_color_hex(ALARM_TEXT),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+static void alarm_ui_build_time(void)
+{
+    lv_obj_t *time_area;
     lv_obj_t *colon;
-    lv_obj_t *repeat_title;
-    lv_obj_t *enabled_card;
-    lv_obj_t *enabled_label;
-    lv_obj_t *enabled_switch;
+    lv_obj_t *done;
+
+    alarm_ui_add_header("设置时间", 0U);
+    time_area = lv_obj_create(alarm_panel);
+    lv_obj_set_size(time_area, 342, 298);
+    lv_obj_set_pos(time_area, 24, 60);
+    alarm_ui_style_object(time_area, ALARM_PANEL, LV_OPA_TRANSP, 0);
+    editor_hour_roller = alarm_ui_add_time_roller(
+        time_area, -86, ALARM_ROLLER_HOUR);
+    editor_minute_roller = alarm_ui_add_time_roller(
+        time_area, 86, ALARM_ROLLER_MINUTE);
+    colon = alarm_ui_add_label(time_area, ":", &lv_font_montserrat_48,
+                               ALARM_AMBER);
+    lv_obj_align(colon, LV_ALIGN_CENTER, 0, -2);
+
+    done = alarm_ui_add_text_button(alarm_panel, 24, 370, 342, 64,
+                                    "完成", ALARM_AMBER_DARK, ALARM_AMBER,
+                                    &hsp_font_cjk_22,
+                                    alarm_ui_time_done_event);
+    lv_obj_set_style_radius(done, 32, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(lv_obj_get_child(done, 0),
+                                lv_color_hex(ALARM_AMBER),
+                                LV_PART_MAIN | LV_STATE_DEFAULT);
+}
+
+static lv_obj_t *alarm_ui_add_repeat_choice(lv_coord_t y, const char *text,
+                                             alarm_repeat_choice_t choice,
+                                             uint8_t selected)
+{
+    lv_obj_t *button = alarm_ui_add_text_button(alarm_panel, 24, y, 342, 82,
+                                                 text, ALARM_CARD,
+                                                 ALARM_BORDER,
+                                                 &hsp_font_cjk_22, NULL);
+
+    lv_obj_add_event_cb(button, alarm_ui_repeat_choice_event,
+                        LV_EVENT_CLICKED, (void *)(uintptr_t)choice);
+    lv_obj_set_style_radius(button, 30,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    alarm_ui_style_day_button(button, selected);
+    return button;
+}
+
+static void alarm_ui_build_repeat(void)
+{
+    const uint8_t workday_mask = ALARM_REPEAT_MONDAY |
+                                 ALARM_REPEAT_TUESDAY |
+                                 ALARM_REPEAT_WEDNESDAY |
+                                 ALARM_REPEAT_THURSDAY |
+                                 ALARM_REPEAT_FRIDAY;
+    uint8_t is_daily = editor_entry.repeat_mask == ALARM_REPEAT_EVERY_DAY;
+    uint8_t is_workday = editor_entry.repeat_mask == workday_mask;
+
+    alarm_ui_add_header("重复", 0U);
+    alarm_ui_add_repeat_choice(72, "每天", ALARM_REPEAT_CHOICE_EVERY_DAY,
+                               is_daily);
+    alarm_ui_add_repeat_choice(166, "工作日", ALARM_REPEAT_CHOICE_WORKDAY,
+                               is_workday);
+    alarm_ui_add_repeat_choice(260, "自定义", ALARM_REPEAT_CHOICE_CUSTOM,
+                               !is_daily && !is_workday);
+}
+
+static void alarm_ui_build_custom_repeat(void)
+{
+    static const char *day_names[7] = {"一", "二", "三", "四",
+                                       "五", "六", "日"};
+    lv_obj_t *title;
     lv_obj_t *button;
+    char repeat_text[48];
     uint8_t day;
 
-    alarm_ui_add_header(editor_index == ALARM_MAX_INDEX ? "添加闹钟" :
-                                                        "编辑闹钟", 0U);
-
-    time_card = lv_obj_create(alarm_panel);
-    lv_obj_set_size(time_card, 342, 158);
-    lv_obj_set_pos(time_card, 24, 67);
-    alarm_ui_style_object(time_card, ALARM_CARD, LV_OPA_COVER, 8);
-    lv_obj_set_style_border_color(time_card, lv_color_hex(ALARM_BORDER),
-                                  LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(time_card, 1,
-                                  LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    alarm_ui_add_adjust_button(time_card, 62, 11, "+", ALARM_ADJUST_HOUR_UP);
-    alarm_ui_add_adjust_button(time_card, 222, 11, "+", ALARM_ADJUST_MINUTE_UP);
-    editor_hour_label = alarm_ui_add_label(time_card, "00",
-                                           &lv_font_montserrat_48,
-                                           ALARM_TEXT);
-    lv_obj_set_pos(editor_hour_label, 53, 51);
-    colon = alarm_ui_add_label(time_card, ":", &lv_font_montserrat_48,
-                               ALARM_AMBER);
-    lv_obj_set_pos(colon, 157, 51);
-    editor_minute_label = alarm_ui_add_label(time_card, "00",
-                                             &lv_font_montserrat_48,
-                                             ALARM_TEXT);
-    lv_obj_set_pos(editor_minute_label, 213, 51);
-    alarm_ui_add_adjust_button(time_card, 62, 109, "-",
-                               ALARM_ADJUST_HOUR_DOWN);
-    alarm_ui_add_adjust_button(time_card, 222, 109, "-",
-                               ALARM_ADJUST_MINUTE_DOWN);
-    alarm_ui_update_editor_time();
-
-    repeat_title = alarm_ui_add_label(alarm_panel, "重复",
-                                      &hsp_font_cjk_22, ALARM_MUTED);
-    lv_obj_set_pos(repeat_title, 27, 232);
+    alarm_ui_add_header("自定义", 0U);
+    title = alarm_ui_add_label(alarm_panel, "选择重复日期",
+                               &hsp_font_cjk_22, ALARM_MUTED);
+    lv_obj_set_pos(title, 24, 70);
     for (day = 0U; day < 7U; day++)
     {
-        button = alarm_ui_add_text_button(alarm_panel,
-                                          28 + (lv_coord_t)day * 49,
-                                          263, 42, 42, day_names[day],
-                                          ALARM_CARD, ALARM_BORDER,
-                                          &hsp_font_cjk_22,
+        lv_coord_t x = day < 4U ? 24 + (lv_coord_t)day * 85 :
+                                 67 + (lv_coord_t)(day - 4U) * 85;
+        lv_coord_t y = day < 4U ? 105 : 185;
+
+        button = alarm_ui_add_text_button(alarm_panel, x, y, 76, 68,
+                                          day_names[day], ALARM_CARD,
+                                          ALARM_BORDER, &hsp_font_cjk_22,
                                           NULL);
         lv_obj_add_event_cb(button, alarm_ui_day_event, LV_EVENT_CLICKED,
                             (void *)(uintptr_t)day);
         editor_day_buttons[day] = button;
         alarm_ui_style_day_button(button,
-                                  (editor_entry.repeat_mask & (1U << day)) != 0U);
+                                  (editor_entry.repeat_mask &
+                                   (1U << day)) != 0U);
     }
 
-    enabled_card = lv_obj_create(alarm_panel);
-    lv_obj_set_size(enabled_card, 342, 58);
-    lv_obj_set_pos(enabled_card, 24, 316);
-    alarm_ui_style_object(enabled_card, ALARM_CARD, LV_OPA_COVER, 8);
-    enabled_label = alarm_ui_add_label(enabled_card, "启用闹钟",
-                                       &hsp_font_cjk_22, ALARM_TEXT);
-    lv_obj_set_pos(enabled_label, 17, 14);
-    enabled_switch = lv_switch_create(enabled_card);
-    lv_obj_set_size(enabled_switch, 54, 30);
-    lv_obj_set_pos(enabled_switch, 270, 14);
-    lv_obj_set_style_bg_color(enabled_switch, lv_color_hex(ALARM_AMBER),
-                              LV_PART_INDICATOR | LV_STATE_CHECKED);
-    if (editor_entry.enabled)
-        lv_obj_add_state(enabled_switch, LV_STATE_CHECKED);
-    lv_obj_add_event_cb(enabled_switch, alarm_ui_enabled_event,
-                        LV_EVENT_VALUE_CHANGED, NULL);
-
-    if (editor_index != ALARM_MAX_INDEX)
-        alarm_ui_add_text_button(alarm_panel, 24, 389, 94, 48,
-                                 LV_SYMBOL_TRASH, ALARM_CARD, ALARM_RED,
-                                 &lv_font_montserrat_20,
-                                 alarm_ui_delete_event);
-    alarm_ui_add_text_button(alarm_panel,
-                             editor_index == ALARM_MAX_INDEX ? 24 : 128,
-                             389,
-                             editor_index == ALARM_MAX_INDEX ? 158 : 110,
-                             48, "试听", ALARM_CARD, ALARM_BLUE,
-                             &hsp_font_cjk_22, alarm_ui_preview_event);
-    alarm_ui_add_text_button(alarm_panel,
-                             editor_index == ALARM_MAX_INDEX ? 200 : 248,
-                             389,
-                             editor_index == ALARM_MAX_INDEX ? 166 : 118,
-                             48, "保存", ALARM_AMBER_DARK, ALARM_AMBER,
-                             &hsp_font_cjk_22, alarm_ui_save_event);
+    alarm_ui_format_repeat(editor_entry.repeat_mask, repeat_text,
+                           sizeof(repeat_text));
+    editor_repeat_summary = alarm_ui_add_label(alarm_panel, repeat_text,
+                                               &hsp_font_cjk_22,
+                                               ALARM_AMBER);
+    lv_obj_align(editor_repeat_summary, LV_ALIGN_TOP_MID, 0, 279);
+    button = alarm_ui_add_text_button(alarm_panel, 24, 370, 342, 64,
+                                      "完成", ALARM_AMBER_DARK, ALARM_AMBER,
+                                      &hsp_font_cjk_22,
+                                      alarm_ui_custom_done_event);
+    lv_obj_set_style_radius(button, 32,
+                            LV_PART_MAIN | LV_STATE_DEFAULT);
 }
 
 static void alarm_ui_snooze_event(lv_event_t *event)
@@ -612,7 +794,7 @@ static void alarm_ui_build_ring(void)
                                sizeof(repeat_text));
     }
 
-    icon = alarm_ui_add_label(alarm_panel, LV_SYMBOL_AUDIO,
+    icon = alarm_ui_add_label(alarm_panel, LV_SYMBOL_BELL,
                               &lv_font_montserrat_48, ALARM_AMBER);
     lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 52);
     title = alarm_ui_add_label(alarm_panel, "ALARM", &lv_font_montserrat_20,
@@ -638,6 +820,8 @@ static void alarm_ui_build_current(void)
     if (ui_Alarm == NULL)
         return;
 
+    editor_hour_roller = NULL;
+    editor_minute_roller = NULL;
     lv_obj_clean(ui_Alarm);
     alarm_panel = lv_obj_create(ui_Alarm);
     lv_obj_set_size(alarm_panel, 390, 450);
@@ -650,11 +834,16 @@ static void alarm_ui_build_current(void)
     lv_obj_set_style_clip_corner(alarm_panel, true,
                                  LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    editor_hour_label = NULL;
-    editor_minute_label = NULL;
+    editor_repeat_summary = NULL;
     rt_memset(editor_day_buttons, 0, sizeof(editor_day_buttons));
     if (alarm_ui_state == ALARM_UI_EDITOR)
         alarm_ui_build_editor();
+    else if (alarm_ui_state == ALARM_UI_TIME)
+        alarm_ui_build_time();
+    else if (alarm_ui_state == ALARM_UI_REPEAT)
+        alarm_ui_build_repeat();
+    else if (alarm_ui_state == ALARM_UI_CUSTOM_REPEAT)
+        alarm_ui_build_custom_repeat();
     else if (alarm_ui_state == ALARM_UI_RING)
         alarm_ui_build_ring();
     else
@@ -678,6 +867,27 @@ static void alarm_ui_show_editor(uint8_t index)
         return;
     editor_index = index;
     alarm_ui_state = ALARM_UI_EDITOR;
+    alarm_ui_build_current();
+}
+
+static void alarm_ui_show_time(void)
+{
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_TIME;
+    alarm_ui_build_current();
+}
+
+static void alarm_ui_show_repeat(void)
+{
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_REPEAT;
+    alarm_ui_build_current();
+}
+
+static void alarm_ui_show_custom_repeat(void)
+{
+    alarm_ui_wait_release();
+    alarm_ui_state = ALARM_UI_CUSTOM_REPEAT;
     alarm_ui_build_current();
 }
 
@@ -734,8 +944,9 @@ void ui_Alarm_screen_destroy(void)
         lv_obj_del(ui_Alarm);
     ui_Alarm = NULL;
     alarm_panel = NULL;
-    editor_hour_label = NULL;
-    editor_minute_label = NULL;
+    editor_repeat_summary = NULL;
+    editor_hour_roller = NULL;
+    editor_minute_roller = NULL;
     rt_memset(editor_day_buttons, 0, sizeof(editor_day_buttons));
 }
 
@@ -755,7 +966,16 @@ void ui_Alarm_return(void)
 {
     if (alarm_ui_state == ALARM_UI_RING)
         return;
-    if (alarm_ui_state == ALARM_UI_EDITOR)
+    if (alarm_ui_state == ALARM_UI_CUSTOM_REPEAT)
+        alarm_ui_show_repeat();
+    else if (alarm_ui_state == ALARM_UI_TIME ||
+             alarm_ui_state == ALARM_UI_REPEAT)
+    {
+        alarm_ui_wait_release();
+        alarm_ui_state = ALARM_UI_EDITOR;
+        alarm_ui_build_current();
+    }
+    else if (alarm_ui_state == ALARM_UI_EDITOR)
         alarm_ui_show_list();
     else
     {
