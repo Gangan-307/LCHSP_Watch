@@ -11,6 +11,7 @@
 #include "littlevgl2rtt.h"
 #include "lv_ex_data.h"
 #include "services/water_reminder_service.h"
+#include "services/tomato_service.h"
 #include "ui/generated/ui.h"
 #include "services/alarm_service.h"
 #include "services/rtc.h"
@@ -87,6 +88,7 @@ int main(void)
     display_power_init();
     alarm_service_init();
     water_reminder_service_init();
+    tomato_service_init();
     input_wake_init();
     watch_key_router_init();
     wrist_wake_init();

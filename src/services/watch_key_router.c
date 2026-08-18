@@ -11,6 +11,7 @@
 #include "ui/details/ui_WeatherDetails.h"
 #include "ui/generated/home_gestures.h"
 #include "ui/water/water_ui.h"
+#include "ui/tomato/tomato_ui.h"
 #include "ui/generated/ui.h"
 #include "ui/system/system_power_ui.h"
 #include "watch_key_router.h"
@@ -42,6 +43,8 @@ static void watch_key_router_back(void)
         ui_Muyu_return();
     else if (active_screen == ui_Water)
         ui_Water_return();
+    else if (active_screen == ui_Tomato)
+        ui_Tomato_return();
     else if (active_screen == ui_Alarm)
         ui_Alarm_return();
 }
@@ -68,6 +71,9 @@ static void watch_key_router_event(input_wake_key_t key,
     }
 
     if (ui_Water_handle_key(key, event))
+        return;
+
+    if (ui_Tomato_handle_key(key, event))
         return;
 
     if (ui_Alarm_handle_key(key, event))

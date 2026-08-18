@@ -26,6 +26,7 @@ extern "C" {
 #include "ui/calculator/calculator_ui.h"
 #include "ui/alarm/alarm_ui.h"
 #include "ui/water/water_ui.h"
+#include "ui/tomato/tomato_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui_WeatherDetails.h"
 #include "ui_MapDetails.h"
