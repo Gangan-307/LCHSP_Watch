@@ -8,6 +8,7 @@
 #include "ui/calculator/calculator_ui.h"
 #include "ui/calendar/calendar_ui.h"
 #include "ui/camera/camera_ui.h"
+#include "ui/compass/compass_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
@@ -51,6 +52,8 @@ static void watch_key_router_back(void)
         ui_Tomato_return();
     else if (active_screen == ui_Camera)
         ui_Camera_return();
+    else if (active_screen == ui_Compass)
+        ui_Compass_return();
     else if (active_screen == ui_Alarm)
         ui_Alarm_return();
 }
@@ -86,6 +89,9 @@ static void watch_key_router_event(input_wake_key_t key,
         return;
 
     if (ui_Camera_handle_key(key, event))
+        return;
+
+    if (ui_Compass_handle_key(key, event))
         return;
 
     if (ui_Alarm_handle_key(key, event))

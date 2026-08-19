@@ -29,6 +29,7 @@ extern "C" {
 #include "ui/water/water_ui.h"
 #include "ui/tomato/tomato_ui.h"
 #include "ui/camera/camera_ui.h"
+#include "ui/compass/compass_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui_WeatherDetails.h"
 #include "ui_MapDetails.h"
