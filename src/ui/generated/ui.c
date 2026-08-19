@@ -88,6 +88,10 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Calculator_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_CALENDAR:
+        ui_Calendar_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_DRINK:
         ui_Water_open_from_app_grid();
         return 1U;
@@ -119,6 +123,7 @@ void ui_init(void)
     ui_Muyu_screen_init();
     ui_ScreenMusic_screen_init();
     ui_Alarm_init();
+    ui_Calendar_init();
     ui_Water_init();
     ui_Tomato_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
@@ -135,6 +140,7 @@ void ui_destroy(void)
     ui_RgbLight_screen_destroy();
     ui_Muyu_screen_destroy();
     ui_Calculator_screen_destroy();
+    ui_Calendar_screen_destroy();
     ui_BluetoothSettings_screen_destroy();
     ui_Water_screen_destroy();
     ui_Tomato_screen_destroy();

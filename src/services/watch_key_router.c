@@ -6,6 +6,7 @@
 #include "services/input_wake.h"
 #include "ui/alarm/alarm_ui.h"
 #include "ui/calculator/calculator_ui.h"
+#include "ui/calendar/calendar_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
@@ -39,6 +40,8 @@ static void watch_key_router_back(void)
         ui_MapDetails_return();
     else if (active_screen == ui_Calculator)
         ui_Calculator_return();
+    else if (active_screen == ui_Calendar)
+        ui_Calendar_return();
     else if (active_screen == ui_Muyu)
         ui_Muyu_return();
     else if (active_screen == ui_Water)
@@ -74,6 +77,9 @@ static void watch_key_router_event(input_wake_key_t key,
         return;
 
     if (ui_Tomato_handle_key(key, event))
+        return;
+
+    if (ui_Calendar_handle_key(key, event))
         return;
 
     if (ui_Alarm_handle_key(key, event))

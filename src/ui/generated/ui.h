@@ -24,6 +24,7 @@ extern "C" {
 #include "screens/ui_BluetoothSettings.h"
 #include "music_ui.h"
 #include "ui/calculator/calculator_ui.h"
+#include "ui/calendar/calendar_ui.h"
 #include "ui/alarm/alarm_ui.h"
 #include "ui/water/water_ui.h"
 #include "ui/tomato/tomato_ui.h"

@@ -19,6 +19,7 @@ module_dirs = [
     'bluetooth',
     'ui/details',
     'ui/calculator',
+    'ui/calendar',
     'ui/water',
     'ui/tomato',
     'ui/music',
