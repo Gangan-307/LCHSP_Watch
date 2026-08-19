@@ -21,6 +21,7 @@
 #include "drivers/vibrator.h"
 #include "bluetooth/music_app.h"
 #include "services/activity_tracker.h"
+#include "services/camera_photo_service.h"
 #include "services/phone_notifications.h"
 #include "services/phone_sync.h"
 #include "find_phone_ble.h"
@@ -51,7 +52,7 @@
 #define HSP_PHONE_FIND_STOP                  (0x02U)
 #define HSP_PHONE_NOTIFICATION_CLEAR         (0x03U)
 #define HSP_PHONE_NOTIFICATION_DELETE        (0x04U)
-#define HSP_PHONE_CAMERA_CAPTURE              (0x05U)
+#define HSP_PHONE_PHOTO_REQUEST               (0x05U)
 
 /* Commands written by Android to the watch CONTROL characteristic. */
 #define HSP_WATCH_FIND_START                 (0x11U)
@@ -68,6 +69,9 @@
 #define HSP_SYNC_LYRIC_DATA                   (0x42U)
 #define HSP_SYNC_COVER_BEGIN                  (0x43U)
 #define HSP_SYNC_COVER_DATA                   (0x44U)
+#define HSP_SYNC_PHOTO_BEGIN                  (0x45U)
+#define HSP_SYNC_PHOTO_DATA                   (0x46U)
+#define HSP_SYNC_PHOTO_STATUS                 (0x47U)
 
 #define HSP_SYNC_NOTIFICATION_BEGIN_LEN       (10U)
 #define HSP_SYNC_NOTIFICATION_DATA_HEADER_LEN (5U)
@@ -77,6 +81,8 @@
 #define HSP_SYNC_LYRIC_DATA_HEADER_LEN        (5U)
 #define HSP_SYNC_COVER_BEGIN_LEN              (11U)
 #define HSP_SYNC_COVER_DATA_HEADER_LEN        (7U)
+#define HSP_SYNC_PHOTO_BEGIN_LEN              (11U)
+#define HSP_SYNC_PHOTO_DATA_HEADER_LEN        (7U)
 
 #define HSP_ADV_INTERVAL                     (0x00A0U) /* 100 ms */
 #define HSP_VIBRATION_PERCENT                (85U)
@@ -428,6 +434,26 @@ static uint8_t hsp_apply_cover_data(const uint8_t *value, uint16_t length)
                length - HSP_SYNC_COVER_DATA_HEADER_LEN) == 0 ? 0U : 1U;
 }
 
+static uint8_t hsp_apply_photo_begin(const uint8_t *value, uint16_t length)
+{
+    if (length != HSP_SYNC_PHOTO_BEGIN_LEN)
+        return 1U;
+    return camera_photo_begin(hsp_read_u16_le(&value[1]),
+                              hsp_read_u32_le(&value[3]),
+                              hsp_read_u32_le(&value[7])) == 0 ? 0U : 1U;
+}
+
+static uint8_t hsp_apply_photo_data(const uint8_t *value, uint16_t length)
+{
+    if (length <= HSP_SYNC_PHOTO_DATA_HEADER_LEN)
+        return 1U;
+    return camera_photo_data(hsp_read_u16_le(&value[1]),
+                             hsp_read_u32_le(&value[3]),
+                             &value[HSP_SYNC_PHOTO_DATA_HEADER_LEN],
+                             length - HSP_SYNC_PHOTO_DATA_HEADER_LEN) == 0 ?
+           0U : 1U;
+}
+
 static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
 {
     rt_err_t result;
@@ -509,6 +535,18 @@ static uint8_t hsp_apply_sync_packet(const uint8_t *value, uint16_t length)
 
     case HSP_SYNC_COVER_DATA:
         return hsp_apply_cover_data(value, length);
+
+    case HSP_SYNC_PHOTO_BEGIN:
+        return hsp_apply_photo_begin(value, length);
+
+    case HSP_SYNC_PHOTO_DATA:
+        return hsp_apply_photo_data(value, length);
+
+    case HSP_SYNC_PHOTO_STATUS:
+        if (length != 2U)
+            return 1U;
+        camera_photo_report_status(value[1]);
+        return 0U;
 
     default:
         LOG_W("HSP unknown phone sync packet: %u", value[0]);
@@ -975,6 +1013,7 @@ static int hsp_find_phone_ble_event_handler(uint16_t event_id, uint8_t *data,
             g_hsp_find_phone.device_status_subscribed = 0U;
             hsp_reset_notification_reassembly();
             hsp_reset_lyric_reassembly();
+            camera_photo_cancel();
             music_app_set_companion_connected(0);
             LOG_I("HSP companion BLE peer disconnected: %u", disconnected->reason);
         }
@@ -1019,9 +1058,9 @@ void find_phone_ble_stop(void)
     hsp_send_phone_command(HSP_PHONE_FIND_STOP);
 }
 
-uint8_t find_phone_ble_capture(void)
+uint8_t find_phone_ble_request_photo_preview(void)
 {
-    return hsp_send_phone_command(HSP_PHONE_CAMERA_CAPTURE);
+    return hsp_send_phone_command(HSP_PHONE_PHOTO_REQUEST);
 }
 
 void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,
@@ -1077,6 +1116,7 @@ void find_phone_ble_close(void)
     g_hsp_find_phone.conn_idx = HSP_INVALID_CONN_IDX;
     hsp_reset_notification_reassembly();
     hsp_reset_lyric_reassembly();
+    camera_photo_cancel();
     music_app_set_companion_connected(0);
 
     if (g_hsp_find_phone.advertising_ready)

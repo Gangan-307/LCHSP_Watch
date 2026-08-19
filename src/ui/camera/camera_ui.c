@@ -3,8 +3,10 @@
 #include <stdint.h>
 
 #include "bluetooth/find_phone_ble.h"
+#include "bluetooth/pan.h"
 #include "drivers/vibrator.h"
 #include "lv_ext_resource_manager.h"
+#include "services/camera_photo_service.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 
@@ -30,6 +32,7 @@ LV_IMG_DECLARE(tomato_num9);
 #define CAMERA_VIBRATION_LEVEL       (72U)
 #define CAMERA_TICK_VIBRATION_MS     (65U)
 #define CAMERA_CAPTURE_VIBRATION_MS  (110U)
+#define CAMERA_PHOTO_MAX_EDGE        (160U)
 
 lv_obj_t *ui_Camera = NULL;
 
@@ -39,6 +42,14 @@ static lv_obj_t *camera_status_label;
 static lv_timer_t *camera_countdown_timer;
 static uint8_t camera_delay_seconds;
 static uint8_t camera_countdown_remaining;
+
+typedef enum
+{
+    CAMERA_UI_MAIN,
+    CAMERA_UI_PREVIEW,
+} camera_ui_state_t;
+
+static camera_ui_state_t camera_ui_state = CAMERA_UI_MAIN;
 
 static const uint8_t camera_delay_values[3] = {0U, 3U, 5U};
 static const char *camera_delay_texts[3] = {"立刻", "3S", "5S"};
@@ -57,6 +68,7 @@ static const void *camera_digit_sources[10] =
 };
 
 static void camera_ui_build_main(void);
+static void camera_ui_build_preview(void);
 
 static void camera_ui_wait_release(void)
 {
@@ -146,10 +158,20 @@ static void camera_ui_send_capture(void)
 {
     (void)vibrator_vibrate(CAMERA_VIBRATION_LEVEL,
                            CAMERA_CAPTURE_VIBRATION_MS);
-    if (!find_phone_ble_capture())
-        camera_ui_show_status("手机未连接");
+    if (!bt_pan_take_picture())
+        camera_ui_show_status("请先完成手机蓝牙配对");
     else
         camera_ui_show_status("已发送拍照命令");
+}
+
+static void camera_ui_preview_request_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+    if (!find_phone_ble_request_photo_preview())
+        camera_ui_show_status("App 未连接");
+    else
+        camera_ui_show_status("正在获取最新照片");
 }
 
 static void camera_ui_cancel_countdown(void)
@@ -232,10 +254,12 @@ static void camera_ui_build_main(void)
     lv_obj_t *pill;
     lv_obj_t *shutter;
     lv_obj_t *inner;
+    lv_obj_t *preview;
     uint8_t index;
 
     if (camera_panel == NULL)
         return;
+    camera_ui_state = CAMERA_UI_MAIN;
     lv_obj_clean(camera_panel);
     camera_status_label = NULL;
     for (index = 0U; index < 3U; index++)
@@ -292,13 +316,87 @@ static void camera_ui_build_main(void)
     lv_obj_clear_flag(inner, LV_OBJ_FLAG_CLICKABLE);
 
     camera_status_label = camera_ui_add_label(camera_panel,
-        find_phone_ble_is_connected() ? "手机已连接" : "等待手机连接",
+        bt_pan_hid_is_connected() ? "原生相机快门已连接" : "等待 HID 配对",
         &hsp_font_cjk_22, CAMERA_MUTED);
-    lv_obj_align(camera_status_label, LV_ALIGN_BOTTOM_MID, 0, -42);
+    lv_obj_align(camera_status_label, LV_ALIGN_TOP_MID, 0, 174);
+
+    preview = camera_ui_add_button(camera_panel, 129, 374, 132, 54, 27);
+    title = camera_ui_add_label(preview, "预览", &hsp_font_cjk_22,
+                                CAMERA_TEXT);
+    lv_obj_center(title);
+    lv_obj_add_event_cb(preview, camera_ui_preview_request_event,
+                        LV_EVENT_CLICKED, NULL);
+}
+
+static void camera_ui_build_preview(void)
+{
+    lv_img_header_t header;
+    lv_img_decoder_dsc_t decoder;
+    lv_obj_t *image;
+    lv_obj_t *back;
+    lv_obj_t *label;
+
+    if (camera_panel == NULL)
+        return;
+    lv_img_cache_invalidate_src(CAMERA_PHOTO_LVGL_PATH);
+    if (!camera_photo_has_image() ||
+        lv_img_decoder_get_info(CAMERA_PHOTO_LVGL_PATH, &header) != LV_RES_OK ||
+        header.w == 0U || header.h == 0U ||
+        header.w > CAMERA_PHOTO_MAX_EDGE || header.h > CAMERA_PHOTO_MAX_EDGE)
+    {
+        camera_ui_build_main();
+        camera_ui_show_status("照片解码失败");
+        return;
+    }
+    if (lv_img_decoder_open(&decoder, CAMERA_PHOTO_LVGL_PATH,
+                            lv_color_white(), 0) != LV_RES_OK)
+    {
+        camera_ui_build_main();
+        camera_ui_show_status("照片内存不足");
+        return;
+    }
+    lv_img_decoder_close(&decoder);
+
+    camera_ui_state = CAMERA_UI_PREVIEW;
+    lv_obj_clean(camera_panel);
+    camera_status_label = NULL;
+    image = lv_img_create(camera_panel);
+    lv_img_set_src(image, CAMERA_PHOTO_LVGL_PATH);
+    lv_obj_set_size(image, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_align(image, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_clear_flag(image, LV_OBJ_FLAG_SCROLLABLE);
+
+    back = camera_ui_add_button(camera_panel, 20, 18, 48, 48, 24);
+    label = camera_ui_add_label(back, LV_SYMBOL_LEFT,
+                                &lv_font_montserrat_20, CAMERA_TEXT);
+    lv_obj_center(label);
+    lv_obj_add_event_cb(back, camera_ui_back_event, LV_EVENT_CLICKED, NULL);
+}
+
+static void camera_ui_photo_async(void *user_data)
+{
+    camera_photo_event_t event = (camera_photo_event_t)(uintptr_t)user_data;
+
+    if (ui_Camera == NULL || lv_scr_act() != ui_Camera)
+        return;
+    if (event == CAMERA_PHOTO_EVENT_READY && camera_countdown_remaining == 0U)
+        camera_ui_build_preview();
+    else if (event == CAMERA_PHOTO_EVENT_PERMISSION_REQUIRED)
+        camera_ui_show_status("请在 App 授予照片权限");
+    else if (event == CAMERA_PHOTO_EVENT_NOT_FOUND)
+        camera_ui_show_status("没有找到手机照片");
+    else if (event == CAMERA_PHOTO_EVENT_ERROR)
+        camera_ui_show_status("照片传输失败");
+}
+
+static void camera_ui_photo_event(camera_photo_event_t event)
+{
+    (void)lv_async_call(camera_ui_photo_async, (void *)(uintptr_t)event);
 }
 
 void ui_Camera_init(void)
 {
+    camera_photo_set_event_handler(camera_ui_photo_event);
 }
 
 void ui_Camera_screen_init(void)
@@ -332,6 +430,7 @@ void ui_Camera_open_from_app_grid(void)
 {
     camera_ui_wait_release();
     camera_ui_cancel_countdown();
+    camera_ui_state = CAMERA_UI_MAIN;
     if (ui_Camera == NULL)
         ui_Camera_screen_init();
     else
@@ -345,6 +444,11 @@ void ui_Camera_return(void)
     if (camera_countdown_remaining != 0U)
     {
         camera_ui_cancel_countdown();
+        camera_ui_build_main();
+        return;
+    }
+    if (camera_ui_state == CAMERA_UI_PREVIEW)
+    {
         camera_ui_build_main();
         return;
     }

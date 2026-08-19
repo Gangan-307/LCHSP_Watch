@@ -39,6 +39,7 @@ typedef struct
     bt_notify_device_mac_t bd_addr;
     rt_timer_t pan_connect_timer;
     uint8_t pan_connected;
+    uint8_t hid_connected;
     uint8_t retry_flag;
     uint8_t retry_times;
     uint8_t retry_max_times;
@@ -86,6 +87,19 @@ uint8_t bt_pan_is_enabled(void)
     return g_bt_enabled;
 }
 
+uint8_t bt_pan_hid_is_connected(void)
+{
+    return (g_bt_enabled && g_bt_app_env.hid_connected) ? 1U : 0U;
+}
+
+uint8_t bt_pan_take_picture(void)
+{
+    if (!bt_pan_hid_is_connected())
+        return 0U;
+    bt_interface_hid_consumer_take_picture();
+    return 1U;
+}
+
 void bt_pan_set_enabled(uint8_t enabled)
 {
     enabled = enabled ? 1U : 0U;
@@ -102,6 +116,7 @@ void bt_pan_set_enabled(uint8_t enabled)
 
         g_bt_app_env.bt_connected = FALSE;
         g_bt_app_env.pan_connected = 0U;
+        g_bt_app_env.hid_connected = 0U;
         if (g_bt_stack_ready)
             bt_interface_close_bt();
     }
@@ -176,6 +191,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
                   info->mac.addr[4], info->mac.addr[3], info->mac.addr[2],
                   info->mac.addr[1], info->mac.addr[0], info->res);
             g_bt_app_env.bt_connected = FALSE;
+            g_bt_app_env.hid_connected = 0U;
             if (g_bt_app_env.pan_connect_timer)
                 rt_timer_stop(g_bt_app_env.pan_connect_timer);
         }
@@ -261,6 +277,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
         case BT_NOTIFY_HID_PROFILE_CONNECTED:
         {
             LOG_I("HID connected\n");
+            g_bt_app_env.hid_connected = 1U;
             if (!g_bt_app_env.pan_connected)
             {
                 if (g_bt_app_env.pan_connect_timer)
@@ -274,6 +291,7 @@ static int bt_app_interface_event_handle(uint16_t type, uint16_t event_id, uint8
         case BT_NOTIFY_HID_PROFILE_DISCONNECTED:
         {
             LOG_I("HID disconnected\n");
+            g_bt_app_env.hid_connected = 0U;
         }
         break;
         default:
