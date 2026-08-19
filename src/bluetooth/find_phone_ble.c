@@ -51,6 +51,7 @@
 #define HSP_PHONE_FIND_STOP                  (0x02U)
 #define HSP_PHONE_NOTIFICATION_CLEAR         (0x03U)
 #define HSP_PHONE_NOTIFICATION_DELETE        (0x04U)
+#define HSP_PHONE_CAMERA_CAPTURE              (0x05U)
 
 /* Commands written by Android to the watch CONTROL characteristic. */
 #define HSP_WATCH_FIND_START                 (0x11U)
@@ -234,7 +235,7 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
 
 SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 
-static void hsp_send_phone_command(uint8_t command);
+static uint8_t hsp_send_phone_command(uint8_t command);
 static void hsp_send_device_status(void);
 static void hsp_flush_notification_commands(void);
 
@@ -782,7 +783,7 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
     return 0U;
 }
 
-static void hsp_send_phone_command(uint8_t command)
+static uint8_t hsp_send_phone_command(uint8_t command)
 {
     sibles_value_t value;
     int result;
@@ -796,7 +797,7 @@ static void hsp_send_phone_command(uint8_t command)
         g_hsp_find_phone.conn_idx == HSP_INVALID_CONN_IDX)
     {
         LOG_W("HSP companion command queued without an Android subscriber");
-        return;
+        return 0U;
     }
 
     memset(&value, 0, sizeof(value));
@@ -806,7 +807,11 @@ static void hsp_send_phone_command(uint8_t command)
     value.value = g_hsp_find_phone.state_packet;
     result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
     if (result != g_hsp_find_phone.state_packet_len)
+    {
         LOG_W("HSP companion notification failed: %d", result);
+        return 0U;
+    }
+    return 1U;
 }
 
 static uint8_t hsp_send_notification_command(uint8_t command, uint16_t id)
@@ -1012,6 +1017,11 @@ void find_phone_ble_stop(void)
 {
     g_hsp_find_phone.requested = 0U;
     hsp_send_phone_command(HSP_PHONE_FIND_STOP);
+}
+
+uint8_t find_phone_ble_capture(void)
+{
+    return hsp_send_phone_command(HSP_PHONE_CAMERA_CAPTURE);
 }
 
 void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,

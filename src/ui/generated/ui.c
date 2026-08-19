@@ -100,6 +100,10 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Tomato_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_CAMERA:
+        ui_Camera_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_WORLD_CLOCK:
         _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 180, 0,
                           &ui_ScreenHome_screen_init);
@@ -126,6 +130,7 @@ void ui_init(void)
     ui_Calendar_init();
     ui_Water_init();
     ui_Tomato_init();
+    ui_Camera_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
     home_gestures_init();
     ui____initial_actions0 = lv_obj_create(NULL);
@@ -144,6 +149,7 @@ void ui_destroy(void)
     ui_BluetoothSettings_screen_destroy();
     ui_Water_screen_destroy();
     ui_Tomato_screen_destroy();
+    ui_Camera_screen_destroy();
     ui_ScreenMusic_screen_destroy();
     ui_Alarm_screen_destroy();
     ui_AppGrid_screen_destroy();

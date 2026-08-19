@@ -17,6 +17,9 @@ void find_phone_ble_stack_ready(void);
 void find_phone_ble_start(void);
 void find_phone_ble_stop(void);
 
+/* Ask the connected Android companion's open remote-camera view to capture. */
+uint8_t find_phone_ble_capture(void);
+
 /* Publish the latest local power state to a subscribed Android companion. */
 void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,
                                           uint8_t charging);
