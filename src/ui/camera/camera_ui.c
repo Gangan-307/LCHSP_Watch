@@ -10,6 +10,7 @@
 #include "services/camera_photo_service.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
+#include "ui/generated/ui_swipe_back.h"
 
 LV_IMG_DECLARE(tomato_num0);
 LV_IMG_DECLARE(tomato_num1);
@@ -611,6 +612,7 @@ void ui_Camera_screen_init(void)
         return;
 
     ui_Camera = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Camera, ui_Camera_return);
     lv_obj_clear_flag(ui_Camera, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Camera, lv_color_hex(CAMERA_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ui_Camera, LV_OPA_COVER, LV_PART_MAIN);

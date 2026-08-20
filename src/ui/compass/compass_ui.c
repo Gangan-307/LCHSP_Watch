@@ -6,6 +6,7 @@
 #include "services/compass_service.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
+#include "ui/generated/ui_swipe_back.h"
 
 #define COMPASS_BG                    0x050608
 #define COMPASS_PANEL                 0x080A0E
@@ -355,6 +356,7 @@ void ui_Compass_screen_init(void)
         return;
 
     ui_Compass = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Compass, ui_Compass_return);
     lv_obj_clear_flag(ui_Compass, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Compass, lv_color_hex(COMPASS_BG),
                               LV_PART_MAIN | LV_STATE_DEFAULT);

@@ -8,7 +8,9 @@
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 #include "ui/generated/screens/ui_ScreenHome.h"
+#include "ui/generated/home_pager.h"
 #include "ui/generated/ui_helpers.h"
+#include "ui/generated/ui_swipe_back.h"
 #include "ui/system/system_power_ui.h"
 
 #define ALARM_BG               0x050608
@@ -914,8 +916,8 @@ static void alarm_ui_service_event(alarm_service_event_t event, uint8_t index)
     {
         alarm_ui_state = ALARM_UI_LIST;
         ring_index = ALARM_MAX_INDEX;
-        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 160, 0,
-                          &ui_ScreenHome_screen_init);
+        home_pager_load_page(HOME_PAGER_PAGE_HOME,
+                             LV_SCR_LOAD_ANIM_FADE_ON, 160);
     }
 }
 
@@ -930,6 +932,7 @@ void ui_Alarm_screen_init(void)
         return;
 
     ui_Alarm = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Alarm, ui_Alarm_return);
     lv_obj_clear_flag(ui_Alarm, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Alarm, lv_color_hex(ALARM_BG),
                               LV_PART_MAIN | LV_STATE_DEFAULT);

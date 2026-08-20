@@ -41,6 +41,7 @@ typedef uint8_t (*app_grid_app_open_cb_t)(app_grid_app_id_t app_id);
 extern lv_obj_t *ui_AppGrid;
 
 void ui_AppGrid_screen_init(void);
+void ui_AppGrid_content_init(lv_obj_t *parent);
 void ui_AppGrid_screen_destroy(void);
 void ui_AppGrid_open(void);
 void ui_AppGrid_return_home(void);

@@ -37,7 +37,7 @@ void ui_event_Muyu(lv_event_t * e)
     lv_indev_t *indev = lv_indev_get_act();
 
     if (event_code == LV_EVENT_GESTURE && indev != NULL &&
-        lv_indev_get_gesture_dir(indev) == LV_DIR_TOP)
+        lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
         ui_Muyu_return();
 }
 
@@ -47,7 +47,7 @@ void ui_event_MuyuPanel(lv_event_t * e)
     lv_indev_t *indev = lv_indev_get_act();
 
     if (event_code == LV_EVENT_GESTURE && indev != NULL &&
-        lv_indev_get_gesture_dir(indev) == LV_DIR_LEFT)
+        lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
         ui_Muyu_return();
 }
 

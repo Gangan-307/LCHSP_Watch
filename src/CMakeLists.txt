@@ -20,10 +20,13 @@ set(SOURCES
     ui/details/ui_MapDetails.c
     ui/music/music_ui.c
     ui/app_grid/app_grid_ui.c
+    ui/safe/safe_ui.c
     ui/system/system_power_ui.c
     ui/generated/ui.c
     ui/generated/hsp_font_cjk_22.c
     ui/generated/home_gestures.c
+    ui/generated/home_pager.c
+    ui/generated/ui_swipe_back.c
     ui/generated/ui_events.c
     ui/generated/ui_helpers.c
     ui/generated/components/ui_comp_hook.c
@@ -43,5 +46,6 @@ target_include_directories(ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/details
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/music
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/app_grid
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/safe
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/system
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/generated)

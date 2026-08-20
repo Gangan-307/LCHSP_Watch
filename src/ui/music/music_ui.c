@@ -6,6 +6,7 @@
 #include <string.h>
 #include "ui/generated/ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
+#include "ui/generated/home_pager.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "bluetooth/music_app.h"
 #include "music_ui.h"
@@ -56,16 +57,15 @@ void ui_ScreenMusic_open_from_home(void)
 {
     music_ui_source = MUSIC_UI_SOURCE_HOME;
     music_ui_wait_release();
-    _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
-                      &ui_ScreenMusic_screen_init);
+    home_pager_load_page(HOME_PAGER_PAGE_MUSIC,
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180);
 }
 
 void ui_ScreenMusic_open_from_app_grid(void)
 {
     music_ui_source = MUSIC_UI_SOURCE_APP_GRID;
     music_ui_wait_release();
-    _ui_screen_change(&ui_ScreenMusic, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
-                      &ui_ScreenMusic_screen_init);
+    home_pager_open_music_from_app_grid();
 }
 
 void ui_ScreenMusic_return(void)
@@ -73,10 +73,15 @@ void ui_ScreenMusic_return(void)
     music_ui_wait_release();
 
     if (music_ui_source == MUSIC_UI_SOURCE_APP_GRID)
-        ui_AppGrid_open();
+        home_pager_set_page(HOME_PAGER_PAGE_APP_GRID, LV_ANIM_ON);
     else
-        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
-                          &ui_ScreenHome_screen_init);
+        home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
+}
+
+void ui_ScreenMusic_set_app_grid_source(uint8_t from_app_grid)
+{
+    music_ui_source = from_app_grid ? MUSIC_UI_SOURCE_APP_GRID :
+                                      MUSIC_UI_SOURCE_HOME;
 }
 
 static uint8_t music_ui_has_synced_lyric(const char *lyric)
@@ -266,15 +271,29 @@ static void music_ui_refresh_timer(lv_timer_t *timer)
 
 void ui_ScreenMusic_screen_init(void)
 {
+    home_pager_init();
+}
+
+void ui_ScreenMusic_content_init(lv_obj_t *parent)
+{
     lv_obj_t *header;
     lv_obj_t *back_button;
     lv_obj_t *cover_frame;
     lv_obj_t *title_label;
 
-    ui_ScreenMusic = lv_obj_create(NULL);
+    if (ui_ScreenMusic != NULL)
+        return;
+
+    ui_ScreenMusic = lv_obj_create(parent);
+    lv_obj_remove_style_all(ui_ScreenMusic);
+    lv_obj_set_size(ui_ScreenMusic, 390, 450);
+    lv_obj_center(ui_ScreenMusic);
     lv_obj_clear_flag(ui_ScreenMusic, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(ui_ScreenMusic, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_set_style_bg_color(ui_ScreenMusic, lv_color_hex(0x000000), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ui_ScreenMusic, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui_ScreenMusic, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(ui_ScreenMusic, 0, LV_PART_MAIN);
     lv_obj_add_event_cb(ui_ScreenMusic, music_ui_gesture_event, LV_EVENT_GESTURE,
                         NULL);
 

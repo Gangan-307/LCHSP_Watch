@@ -10,9 +10,11 @@
 #include "ui/camera/camera_ui.h"
 #include "ui/compass/compass_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
+#include "ui/safe/safe_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
 #include "ui/generated/home_gestures.h"
+#include "ui/generated/home_pager.h"
 #include "ui/water/water_ui.h"
 #include "ui/tomato/tomato_ui.h"
 #include "ui/generated/ui.h"
@@ -28,9 +30,9 @@ static void watch_key_router_back(void)
 
     if (home_gestures_handle_back())
         return;
-    if (active_screen == ui_ScreenHome)
+    if (home_pager_is_active(HOME_PAGER_PAGE_HOME))
         return;
-    if (active_screen == ui_AppGrid)
+    if (home_pager_is_active(HOME_PAGER_PAGE_APP_GRID))
         ui_AppGrid_return_home();
     else if (active_screen == ui_RgbLight)
         ui_RgbLight_return();
@@ -56,6 +58,8 @@ static void watch_key_router_back(void)
         ui_Compass_return();
     else if (active_screen == ui_Alarm)
         ui_Alarm_return();
+    else if (active_screen == ui_Safe)
+        ui_Safe_return();
 }
 
 static void watch_key_router_event(input_wake_key_t key,
@@ -110,7 +114,7 @@ static void watch_key_router_event(input_wake_key_t key,
         return;
     }
 
-    if (lv_scr_act() == ui_ScreenMusic)
+    if (home_pager_is_active(HOME_PAGER_PAGE_MUSIC))
     {
         music_app_adjust_volume(key == INPUT_WAKE_KEY1 ? 1 : -1);
         return;

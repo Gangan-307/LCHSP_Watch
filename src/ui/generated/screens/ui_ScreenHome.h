@@ -15,6 +15,8 @@ extern "C" {
 // SCREEN: ui_ScreenHome
 extern void ui_ScreenHome_screen_init(void);
 extern void ui_ScreenHome_screen_destroy(void);
+extern void ui_ScreenHome_content_init(lv_obj_t *parent, lv_obj_t *screen);
+extern void ui_ScreenHome_content_destroy(void);
 extern void ui_ScreenHome_set_time(uint8_t hours, uint8_t minutes);
 extern void ui_event_ScreenHome(lv_event_t * e);
 extern lv_obj_t * ui_ScreenHome;

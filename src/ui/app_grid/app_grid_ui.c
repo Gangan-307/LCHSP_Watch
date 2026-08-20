@@ -15,6 +15,7 @@
 #include "cell_transform.h"
 #include "ui/generated/ui.h"
 #include "ui/generated/ui_helpers.h"
+#include "ui/generated/home_pager.h"
 #include "app_grid_ui.h"
 
 LV_IMG_DECLARE(img_bikestopwatch);
@@ -665,11 +666,15 @@ void ui_AppGrid_return_home(void)
     app_grid.dragging = 0U;
     app_grid.scroll_sum.x = 0;
     app_grid.scroll_sum.y = 0;
-    _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180, 0,
-                      &ui_ScreenHome_screen_init);
+    home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
 }
 
 void ui_AppGrid_screen_init(void)
+{
+    home_pager_init();
+}
+
+void ui_AppGrid_content_init(lv_obj_t *parent)
 {
     lv_obj_t *panel;
     lv_obj_t *center_icon;
@@ -678,10 +683,18 @@ void ui_AppGrid_screen_init(void)
     app_grid.zoom = 1.0f;
     app_grid.last_zoom = -1.0f;
 
-    ui_AppGrid = lv_obj_create(NULL);
+    if (ui_AppGrid != NULL)
+        return;
+
+    ui_AppGrid = lv_obj_create(parent);
+    lv_obj_remove_style_all(ui_AppGrid);
+    lv_obj_set_size(ui_AppGrid, LV_HOR_RES_MAX, LV_VER_RES_MAX);
+    lv_obj_center(ui_AppGrid);
     lv_obj_clear_flag(ui_AppGrid, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_AppGrid, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ui_AppGrid, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(ui_AppGrid, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(ui_AppGrid, 0, LV_PART_MAIN);
 
     panel = lv_obj_create(ui_AppGrid);
     lv_obj_set_size(panel, LV_HOR_RES_MAX, LV_VER_RES_MAX);
@@ -721,12 +734,11 @@ void ui_AppGrid_open(void)
 {
     lv_indev_t *indev = lv_indev_get_act();
 
-    if (ui_AppGrid == NULL)
-        ui_AppGrid_screen_init();
     if (indev != NULL)
         lv_indev_wait_release(indev);
 
-    lv_scr_load_anim(ui_AppGrid, LV_SCR_LOAD_ANIM_MOVE_LEFT, 220, 0, false);
+    home_pager_load_page(HOME_PAGER_PAGE_APP_GRID,
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, 180);
 }
 
 void ui_AppGrid_screen_destroy(void)

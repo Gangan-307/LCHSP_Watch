@@ -10,7 +10,9 @@
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 #include "ui/generated/screens/ui_ScreenHome.h"
+#include "ui/generated/home_pager.h"
 #include "ui/generated/ui_helpers.h"
+#include "ui/generated/ui_swipe_back.h"
 #include "ui/system/system_power_ui.h"
 
 LV_IMG_DECLARE(water);
@@ -546,7 +548,7 @@ static uint8_t water_ui_can_present(void)
     }
     if (display_power_is_off())
         return 1U;
-    if (active == ui_ScreenHome || active == ui_AppGrid)
+    if (active == ui_ScreenHome)
         return 1U;
     return active == ui_Water && water_ui_state == WATER_UI_MAIN;
 }
@@ -555,7 +557,7 @@ static void water_ui_show_reminder(void)
 {
     lv_obj_t *active = lv_scr_act();
 
-    if (active == ui_AppGrid)
+    if (home_pager_is_active(HOME_PAGER_PAGE_APP_GRID))
         water_return_target = WATER_RETURN_APP_GRID;
     else if (active == ui_Water)
         water_return_target = WATER_RETURN_WATER;
@@ -587,8 +589,8 @@ static void water_ui_finish_reminder(void)
     }
     else
     {
-        _ui_screen_change(&ui_ScreenHome, LV_SCR_LOAD_ANIM_FADE_ON, 160, 0,
-                          &ui_ScreenHome_screen_init);
+        home_pager_load_page(HOME_PAGER_PAGE_HOME,
+                             LV_SCR_LOAD_ANIM_FADE_ON, 160);
     }
 }
 
@@ -626,6 +628,7 @@ void ui_Water_screen_init(void)
     if (ui_Water != NULL)
         return;
     ui_Water = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Water, ui_Water_return);
     lv_obj_clear_flag(ui_Water, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Water, lv_color_hex(WATER_BG), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(ui_Water, LV_OPA_COVER, LV_PART_MAIN);

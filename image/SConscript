@@ -20,6 +20,7 @@ objs_ezip += [node for node in Glob('ezip/*.c')
 app_grid_icons = Glob('app_grid/*.png')
 number_images = Glob('number/*.png')
 tomato_images = Glob('number/tomoto/tomato_*.png')
+gif_images = Glob('*.gif')
 
 if 16 == GetConfigValue('LV_COLOR_DEPTH'):
     img_flags = '-rgb565'
@@ -31,6 +32,7 @@ src = Env.ImgResource(objs_ezip, img_flags+' -cfile 2 -pal_support')
 src += Env.ImgResource(app_grid_icons, img_flags+' -cfile 2 -dpt 1')
 src += Env.ImgResource(number_images, img_flags+' -cfile 2 -dpt 1')
 src += Env.ImgResource(tomato_images, img_flags+' -cfile 2 -dpt 1')
+src += Env.ImgResource(gif_images, img_flags+' -cfile 2 -dpt 1')
 
 group = DefineGroup('image_ezip', src, depend = ['PKG_USING_LITTLEVGL2RTT'])  
 

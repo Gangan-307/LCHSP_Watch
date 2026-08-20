@@ -1,6 +1,7 @@
 /* Home-only pages opened by vertical gestures. */
 
 #include "home_gestures.h"
+#include "home_pager.h"
 #include "hsp_font_cjk_22.h"
 #include "ui.h"
 #include "bluetooth/find_phone_ble.h"
@@ -37,6 +38,8 @@ LV_IMG_DECLARE(smg);
 
 static lv_obj_t *controls_screen;
 static lv_obj_t *notifications_screen;
+static lv_obj_t *controls_tile_parent;
+static lv_obj_t *notifications_tile_parent;
 static lv_obj_t *notifications_list;
 static lv_obj_t *notifications_summary;
 static lv_obj_t *notification_detail_screen;
@@ -101,20 +104,30 @@ static void home_gestures_return_home(lv_scr_load_anim_t animation)
     int duration = animation == LV_SCR_LOAD_ANIM_NONE ? 0 : 200;
 
     home_gestures_wait_release();
-    _ui_screen_change(&ui_ScreenHome, animation, duration, 0,
-                      &ui_ScreenHome_screen_init);
+    home_pager_load_page(HOME_PAGER_PAGE_HOME, animation, duration);
 }
 
-static lv_obj_t *home_gestures_create_panel(lv_obj_t **screen)
+static lv_obj_t *home_gestures_create_panel(lv_obj_t *parent,
+                                             lv_obj_t **screen)
 {
     lv_obj_t *panel;
 
-    *screen = lv_obj_create(NULL);
+    *screen = lv_obj_create(parent);
+    lv_obj_remove_style_all(*screen);
+    if (parent != NULL)
+    {
+        lv_obj_set_size(*screen, 390, 450);
+        lv_obj_center(*screen);
+    }
     lv_obj_clear_flag(*screen, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(*screen, lv_color_hex(HOME_GESTURE_SCREEN_BG),
+    lv_obj_set_style_bg_color(*screen, lv_color_black(),
                               LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(*screen, LV_OPA_COVER,
                             LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(*screen, 0,
+                                  LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(*screen, 0,
+                             LV_PART_MAIN | LV_STATE_DEFAULT);
 
     panel = lv_obj_create(*screen);
     lv_obj_set_size(panel, 390, 450);
@@ -639,13 +652,13 @@ static void home_gestures_refresh_timer_cb(lv_timer_t *timer)
 static void home_gestures_controls_back(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_TOP);
+        home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
 }
 
 static void home_gestures_notifications_back(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_CLICKED)
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_BOTTOM);
+        home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
 }
 
 static void home_gestures_close_notification_detail(void)
@@ -660,8 +673,8 @@ static void home_gestures_close_notification_detail(void)
     notification_detail_screen = NULL;
     notification_detail_id = 0U;
     home_gestures_wait_release();
-    lv_scr_load_anim(notifications_screen, LV_SCR_LOAD_ANIM_MOVE_RIGHT,
-                     200, 0, false);
+    home_pager_load_page(HOME_PAGER_PAGE_NOTIFICATIONS,
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200);
     if (detail_screen != NULL)
         lv_obj_del_delayed(detail_screen, 250U);
 }
@@ -776,24 +789,6 @@ static void home_gestures_volume_event(lv_event_t *event)
 
         music_app_set_volume(volume);
         home_gestures_refresh_controls();
-    }
-}
-
-static void home_gestures_controls_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_GESTURE &&
-        lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_TOP)
-    {
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_TOP);
-    }
-}
-
-static void home_gestures_notifications_event(lv_event_t *event)
-{
-    if (lv_event_get_code(event) == LV_EVENT_GESTURE &&
-        lv_indev_get_gesture_dir(lv_indev_get_act()) == LV_DIR_BOTTOM)
-    {
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_BOTTOM);
     }
 }
 
@@ -951,6 +946,7 @@ static void home_gestures_add_notification_card(lv_obj_t *parent,
     card = lv_btn_create(parent);
     lv_obj_set_size(card, 354, 138);
     home_gestures_style_card(card);
+    lv_obj_clear_flag(card, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_set_style_pad_all(card, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(card, lv_color_hex(HOME_GESTURE_CARD_PRESSED),
                               LV_PART_MAIN | LV_STATE_PRESSED);
@@ -1077,13 +1073,21 @@ static void home_gestures_notification_detail_event(lv_event_t *event)
         return;
 
     indev = lv_indev_get_act();
-    if (indev == NULL || lv_indev_get_gesture_dir(indev) != LV_DIR_LEFT)
+    if (indev == NULL)
         return;
 
-    lv_event_stop_bubbling(event);
-    lv_indev_wait_release(indev);
-    home_gestures_delete_notification(notification_detail_id);
-    home_gestures_close_notification_detail();
+    if (lv_indev_get_gesture_dir(indev) == LV_DIR_LEFT)
+    {
+        lv_event_stop_bubbling(event);
+        lv_indev_wait_release(indev);
+        home_gestures_delete_notification(notification_detail_id);
+        home_gestures_close_notification_detail();
+    }
+    else if (lv_indev_get_gesture_dir(indev) == LV_DIR_RIGHT)
+    {
+        lv_event_stop_bubbling(event);
+        home_gestures_close_notification_detail();
+    }
 }
 
 static void home_gestures_notification_content_event(lv_event_t *event)
@@ -1129,7 +1133,7 @@ static uint8_t home_gestures_open_notification_detail(uint16_t id,
     old_detail_screen = notification_detail_screen;
     notification_detail_screen = NULL;
     notification_detail_id = id;
-    panel = home_gestures_create_panel(&notification_detail_screen);
+    panel = home_gestures_create_panel(NULL, &notification_detail_screen);
     home_gestures_add_header(panel, "", "MESSAGE",
                              home_gestures_notification_detail_back);
 
@@ -1215,9 +1219,14 @@ static uint8_t home_gestures_open_notification_detail(uint16_t id,
 
 static void home_gestures_create_controls(void)
 {
-    lv_obj_t *panel = home_gestures_create_panel(&controls_screen);
+    lv_obj_t *panel;
     lv_obj_t *bluetooth_tile;
     lv_obj_t *light_tile;
+
+    if (controls_tile_parent == NULL)
+        return;
+
+    panel = home_gestures_create_panel(controls_tile_parent, &controls_screen);
 
     home_gestures_add_header(panel, "", "CONTROL CENTER",
                              home_gestures_controls_back);
@@ -1268,17 +1277,21 @@ static void home_gestures_create_controls(void)
     home_gestures_add_slider(panel, 375, "VOLUME", home_gestures_volume_event,
                              &control_volume_slider, &control_volume_value);
 
-    lv_obj_add_event_cb(controls_screen, home_gestures_controls_event,
-                        LV_EVENT_GESTURE, NULL);
     home_gestures_refresh_controls();
     control_refresh_timer = lv_timer_create(home_gestures_refresh_timer_cb, 1000, NULL);
 }
 
 static void home_gestures_create_notifications(void)
 {
-    lv_obj_t *panel = home_gestures_create_panel(&notifications_screen);
+    lv_obj_t *panel;
     lv_obj_t *clear_button;
     lv_obj_t *clear_icon;
+
+    if (notifications_tile_parent == NULL)
+        return;
+
+    panel = home_gestures_create_panel(notifications_tile_parent,
+                                       &notifications_screen);
 
     home_gestures_add_header(panel, LV_SYMBOL_BELL, "MESSAGES",
                              home_gestures_notifications_back);
@@ -1337,8 +1350,6 @@ static void home_gestures_create_notifications(void)
     lv_obj_set_style_bg_opa(notifications_list, LV_OPA_50,
                             LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
 
-    lv_obj_add_event_cb(notifications_screen, home_gestures_notifications_event,
-                        LV_EVENT_GESTURE, NULL);
     notifications_revision = (uint32_t)~0U;
     home_gestures_refresh_notifications();
     notifications_refresh_timer = lv_timer_create(
@@ -1347,8 +1358,7 @@ static void home_gestures_create_notifications(void)
 
 static void home_gestures_show_notification_preview(uint16_t id)
 {
-    if (notifications_screen == NULL)
-        home_gestures_create_notifications();
+    home_gestures_prepare_notifications();
 
     if (!home_gestures_open_notification_detail(id, 0U))
         return;
@@ -1442,20 +1452,20 @@ void home_gestures_init(void)
 
 void home_gestures_open_controls(void)
 {
-    if (controls_screen == NULL)
-        home_gestures_create_controls();
+    home_gestures_prepare_controls();
 
     home_gestures_wait_release();
-    lv_scr_load_anim(controls_screen, LV_SCR_LOAD_ANIM_MOVE_BOTTOM, 220, 0, false);
+    home_pager_load_page(HOME_PAGER_PAGE_CONTROLS,
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200);
 }
 
 void home_gestures_open_notifications(void)
 {
-    if (notifications_screen == NULL)
-        home_gestures_create_notifications();
+    home_gestures_prepare_notifications();
 
     home_gestures_wait_release();
-    lv_scr_load_anim(notifications_screen, LV_SCR_LOAD_ANIM_MOVE_TOP, 220, 0, false);
+    home_pager_load_page(HOME_PAGER_PAGE_NOTIFICATIONS,
+                         LV_SCR_LOAD_ANIM_MOVE_RIGHT, 200);
 }
 
 uint8_t home_gestures_handle_back(void)
@@ -1469,15 +1479,15 @@ uint8_t home_gestures_handle_back(void)
         return 1U;
     }
 
-    if (notifications_screen != NULL && active_screen == notifications_screen)
+    if (home_pager_is_active(HOME_PAGER_PAGE_NOTIFICATIONS))
     {
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_BOTTOM);
+        home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
         return 1U;
     }
 
-    if (controls_screen != NULL && active_screen == controls_screen)
+    if (home_pager_is_active(HOME_PAGER_PAGE_CONTROLS))
     {
-        home_gestures_return_home(LV_SCR_LOAD_ANIM_MOVE_TOP);
+        home_pager_set_page(HOME_PAGER_PAGE_HOME, LV_ANIM_ON);
         return 1U;
     }
 
@@ -1487,6 +1497,25 @@ uint8_t home_gestures_handle_back(void)
 void home_gestures_refresh_controls_state(void)
 {
     home_gestures_refresh_controls();
+}
+
+void home_gestures_attach_tiles(lv_obj_t *controls_parent,
+                                lv_obj_t *notifications_parent)
+{
+    controls_tile_parent = controls_parent;
+    notifications_tile_parent = notifications_parent;
+}
+
+void home_gestures_prepare_controls(void)
+{
+    if (controls_screen == NULL)
+        home_gestures_create_controls();
+}
+
+void home_gestures_prepare_notifications(void)
+{
+    if (notifications_screen == NULL)
+        home_gestures_create_notifications();
 }
 
 void home_gestures_destroy(void)
@@ -1516,6 +1545,8 @@ void home_gestures_destroy(void)
 
     controls_screen = NULL;
     notifications_screen = NULL;
+    controls_tile_parent = NULL;
+    notifications_tile_parent = NULL;
     notifications_list = NULL;
     notifications_summary = NULL;
     notification_detail_screen = NULL;

@@ -376,13 +376,21 @@ static void calendar_ui_gesture_event(lv_event_t *event)
     lv_indev_t *indev;
     lv_dir_t direction;
 
-    if (lv_event_get_code(event) != LV_EVENT_GESTURE ||
-        calendar_ui_state != CALENDAR_UI_DETAIL)
+    if (lv_event_get_code(event) != LV_EVENT_GESTURE)
         return;
     indev = lv_indev_get_act();
     if (indev == NULL)
         return;
     direction = lv_indev_get_gesture_dir(indev);
+    if (direction == LV_DIR_RIGHT)
+    {
+        ui_Calendar_return();
+        return;
+    }
+
+    if (calendar_ui_state != CALENDAR_UI_DETAIL)
+        return;
+
     if (direction == LV_DIR_TOP)
         calendar_ui_shift_selected_day(1);
     else if (direction == LV_DIR_BOTTOM)

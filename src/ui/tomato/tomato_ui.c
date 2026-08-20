@@ -7,6 +7,7 @@
 #include "services/tomato_service.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
+#include "ui/generated/ui_swipe_back.h"
 
 LV_IMG_DECLARE(tomato_num0);
 LV_IMG_DECLARE(tomato_num1);
@@ -681,6 +682,7 @@ void ui_Tomato_screen_init(void)
         return;
 
     ui_Tomato = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Tomato, ui_Tomato_return);
     lv_obj_clear_flag(ui_Tomato, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Tomato, lv_color_hex(TOMATO_BG),
                               LV_PART_MAIN);

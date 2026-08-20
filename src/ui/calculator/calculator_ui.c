@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "ui/app_grid/app_grid_ui.h"
+#include "ui/generated/ui_swipe_back.h"
 
 #define CALCULATOR_BG              0x050608
 #define CALCULATOR_NUMBER          0x252A31
@@ -641,6 +642,7 @@ void ui_Calculator_screen_init(void)
         return;
 
     ui_Calculator = lv_obj_create(NULL);
+    ui_swipe_back_register(ui_Calculator, ui_Calculator_return);
     lv_obj_clear_flag(ui_Calculator, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Calculator, lv_color_hex(CALCULATOR_BG),
                               LV_PART_MAIN | LV_STATE_DEFAULT);

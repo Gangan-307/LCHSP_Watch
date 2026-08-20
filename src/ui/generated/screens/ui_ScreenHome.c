@@ -5,6 +5,7 @@
 
 #include "../ui.h"
 #include "../home_gestures.h"
+#include "../home_pager.h"
 #include "bluetooth/pan.h"
 #include "services/activity_tracker.h"
 #include "services/battery_ui.h"
@@ -373,67 +374,34 @@ static lv_obj_t *ui_home_add_activity_ring(lv_obj_t *parent,
     return arc;
 }
 
-static void ui_home_handle_gesture(lv_event_t *e, int animation_time)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-    lv_indev_t *indev;
-
-    if (event_code != LV_EVENT_GESTURE)
-        return;
-
-    indev = lv_indev_get_act();
-    if (indev == NULL)
-        return;
-
-    switch (lv_indev_get_gesture_dir(indev))
-    {
-    case LV_DIR_LEFT:
-        (void)animation_time;
-        ui_AppGrid_open();
-        break;
-    case LV_DIR_RIGHT:
-        (void)animation_time;
-        ui_ScreenMusic_open_from_home();
-        break;
-    case LV_DIR_TOP:
-        home_gestures_open_notifications();
-        break;
-    case LV_DIR_BOTTOM:
-        home_gestures_open_controls();
-        break;
-    default:
-        break;
-    }
-}
-
 // event funtions
 void ui_event_ScreenHome(lv_event_t *e)
 {
-    ui_home_handle_gesture(e, 250);
+    (void)e;
 }
 
 void ui_event_MainPanel1(lv_event_t *e)
 {
-    ui_home_handle_gesture(e, 200);
+    (void)e;
 }
 
 void ui_event_MusicEntry(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_CLICKED)
-        ui_ScreenMusic_open_from_home();
+        home_pager_set_page(HOME_PAGER_PAGE_MUSIC, LV_ANIM_ON);
 }
 
 // build funtions
 void ui_ScreenHome_screen_init(void)
 {
-    ui_ScreenHome = lv_obj_create(NULL);
-    lv_obj_clear_flag(ui_ScreenHome, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_bg_color(ui_ScreenHome, lv_color_hex(HOME_SCREEN_BG),
-                              LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_opa(ui_ScreenHome, LV_OPA_COVER,
-                            LV_PART_MAIN | LV_STATE_DEFAULT);
+    home_pager_init();
+}
 
-    ui_MainPanel1 = lv_obj_create(ui_ScreenHome);
+void ui_ScreenHome_content_init(lv_obj_t *parent, lv_obj_t *screen)
+{
+    ui_ScreenHome = screen;
+
+    ui_MainPanel1 = lv_obj_create(parent);
     lv_obj_set_size(ui_MainPanel1, 390, 450);
     lv_obj_align(ui_MainPanel1, LV_ALIGN_CENTER, 0, 0);
     lv_obj_clear_flag(ui_MainPanel1, LV_OBJ_FLAG_SCROLLABLE);
@@ -526,11 +494,14 @@ void ui_ScreenHome_screen_init(void)
     /* Kept for generated-header compatibility; the old unlock hint is removed. */
     ui_Label8 = NULL;
 
-    lv_obj_add_event_cb(ui_MainPanel1, ui_event_MainPanel1, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(ui_ScreenHome, ui_event_ScreenHome, LV_EVENT_ALL, NULL);
 }
 
 void ui_ScreenHome_screen_destroy(void)
+{
+    home_pager_destroy();
+}
+
+void ui_ScreenHome_content_destroy(void)
 {
     if (home_bluetooth_timer != NULL)
     {
@@ -539,9 +510,6 @@ void ui_ScreenHome_screen_destroy(void)
     }
 
     battery_ui_unbind_home();
-    if (ui_ScreenHome)
-        lv_obj_del(ui_ScreenHome);
-
     ui_ScreenHome = NULL;
     ui_MainPanel1 = NULL;
     ui_LabelTime = NULL;
