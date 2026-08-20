@@ -1,8 +1,8 @@
 /*
  * MMC56X3 magnetic compass service.
  *
- * The board is assumed to mount sensor +Y toward 12 o'clock and +X toward
- * 3 o'clock.  COMPASS_BOARD_ROTATION_DEG is the single board-orientation
+ * The board mounts sensor +Y toward 12 o'clock and +X toward 9 o'clock.
+ * COMPASS_BOARD_ROTATION_DEG is the single board-orientation
  * correction to adjust after comparing a prototype against a known heading.
  */
 
@@ -18,6 +18,7 @@
     defined(BSP_USING_I2C3)
 
 #include "bf0_hal.h"
+#include "drivers/i2c.h"
 #include "drv_io.h"
 #include "sensor.h"
 #include "sensor_memsic_mmc56x3.h"
@@ -25,6 +26,15 @@
 #define COMPASS_SENSOR_NAME                    "mmc56x3"
 #define COMPASS_DEVICE_NAME                    "mag_mmc56x3"
 #define COMPASS_I2C_NAME                       "i2c3"
+#define COMPASS_I2C_ADDRESS                    (0x30U)
+#define COMPASS_STATUS_REGISTER                (0x18U)
+#define COMPASS_CTRL0_REGISTER                 (0x1BU)
+#define COMPASS_CTRL2_REGISTER                 (0x1DU)
+#define COMPASS_STATUS_MEASUREMENT_DONE        (0x40U)
+#define COMPASS_CTRL0_TRIGGER_MEASUREMENT      (0x01U)
+#define COMPASS_CTRL2_CONTINUOUS_ENABLE        (0x10U)
+#define COMPASS_REGISTER_ADDRESS_BITS          (8U)
+#define COMPASS_MEASUREMENT_TIMEOUT_MS         (20U)
 #define COMPASS_SAMPLE_PERIOD_MS               (50U)
 #define COMPASS_OUTPUT_DATA_RATE_HZ            (20U)
 #define COMPASS_THREAD_STACK_SIZE              (2048U)
@@ -49,6 +59,7 @@ typedef struct
 } compass_calibration_t;
 
 static rt_device_t compass_device;
+static struct rt_i2c_bus_device *compass_i2c_bus;
 static struct rt_mutex compass_lock;
 static struct rt_semaphore compass_active_sem;
 static compass_snapshot_t compass_snapshot;
@@ -56,6 +67,59 @@ static compass_calibration_t compass_calibration;
 static volatile uint8_t compass_active;
 static uint8_t compass_initialized;
 static uint8_t compass_available;
+
+static uint8_t compass_prepare_one_shot_mode(void)
+{
+    uint8_t control;
+
+    compass_i2c_bus = rt_i2c_bus_device_find(COMPASS_I2C_NAME);
+    if (compass_i2c_bus == RT_NULL)
+        return 0U;
+
+    if (rt_i2c_mem_read(compass_i2c_bus, COMPASS_I2C_ADDRESS,
+                        COMPASS_CTRL2_REGISTER,
+                        COMPASS_REGISTER_ADDRESS_BITS,
+                        &control, sizeof(control)) != sizeof(control))
+        return 0U;
+
+    control &= (uint8_t)~COMPASS_CTRL2_CONTINUOUS_ENABLE;
+    if (rt_i2c_mem_write(compass_i2c_bus, COMPASS_I2C_ADDRESS,
+                         COMPASS_CTRL2_REGISTER,
+                         COMPASS_REGISTER_ADDRESS_BITS,
+                         &control, sizeof(control)) != sizeof(control))
+        return 0U;
+
+    return 1U;
+}
+
+static uint8_t compass_trigger_one_shot(void)
+{
+    uint8_t command = COMPASS_CTRL0_TRIGGER_MEASUREMENT;
+    uint8_t status;
+    uint8_t elapsed_ms;
+
+    if (compass_i2c_bus == RT_NULL ||
+        rt_i2c_mem_write(compass_i2c_bus, COMPASS_I2C_ADDRESS,
+                         COMPASS_CTRL0_REGISTER,
+                         COMPASS_REGISTER_ADDRESS_BITS,
+                         &command, sizeof(command)) != sizeof(command))
+        return 0U;
+
+    for (elapsed_ms = 0U; elapsed_ms < COMPASS_MEASUREMENT_TIMEOUT_MS;
+         elapsed_ms++)
+    {
+        rt_thread_mdelay(1U);
+        if (rt_i2c_mem_read(compass_i2c_bus, COMPASS_I2C_ADDRESS,
+                            COMPASS_STATUS_REGISTER,
+                            COMPASS_REGISTER_ADDRESS_BITS,
+                            &status, sizeof(status)) != sizeof(status))
+            return 0U;
+        if ((status & COMPASS_STATUS_MEASUREMENT_DONE) != 0U)
+            return 1U;
+    }
+
+    return 0U;
+}
 
 static void compass_reset_calibration_locked(void)
 {
@@ -158,8 +222,8 @@ static void compass_process_sample(const struct rt_sensor_data *sample)
     compass_snapshot.calibrated =
         compass_snapshot.calibration_percent >= 100U ? 1U : 0U;
 
-    /* +Y points to the top of the display and +X points to its right. */
-    right = calibrated[0];
+    /* Sensor +X points left on this board; convert it to display-right. */
+    right = -calibrated[0];
     forward = calibrated[1];
     if (!compass_calibration.filter_valid)
     {
@@ -222,7 +286,8 @@ static void compass_thread_entry(void *parameter)
         }
 
         rt_memset(&sample, 0, sizeof(sample));
-        if (rt_device_read(compass_device, 0, &sample, 1U) == 1U)
+        if (compass_trigger_one_shot() &&
+            rt_device_read(compass_device, 0, &sample, 1U) == 1U)
         {
             compass_process_sample(&sample);
             log_failure_count = 0U;
@@ -290,6 +355,11 @@ void compass_service_init(void)
 
     (void)rt_device_control(compass_device, RT_SENSOR_CTRL_SET_ODR,
                             (void *)(rt_ubase_t)COMPASS_OUTPUT_DATA_RATE_HZ);
+    if (!compass_prepare_one_shot_mode())
+    {
+        rt_kprintf("compass: cannot enable one-shot measurement\n");
+        return;
+    }
     compass_available = 1U;
     compass_snapshot.available = 1U;
 
