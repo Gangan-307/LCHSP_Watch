@@ -43,6 +43,8 @@ typedef struct
     rt_tick_t cover_next_request_tick;
     music_volume_echo_t volume_echoes[MUSIC_VOLUME_ECHO_HISTORY_SIZE];
     uint8_t next_volume_echo;
+    char previous_title[MUSIC_APP_TEXT_MAX_LEN];
+    uint8_t title_update_pending;
 } music_app_state_t;
 
 static music_app_state_t music_state;
@@ -357,11 +359,73 @@ static void music_copy_text(char *destination, const uint8_t *source,
     music_copy_utf8_text(destination, source, source_length);
 }
 
-static int music_song_changed(const bt_notify_avrcp_music_detail_info_t *detail)
+static uint8_t music_parse_duration_ms(const uint8_t *text, uint32_t length,
+                                       uint32_t *duration_ms)
 {
+    uint32_t value = 0U;
+    uint32_t index;
+
+    if (text == RT_NULL || duration_ms == RT_NULL || length == 0U)
+        return 0U;
+
+    for (index = 0U; index < length; index++)
+    {
+        uint32_t digit;
+
+        if (text[index] < '0' || text[index] > '9')
+            return 0U;
+        digit = text[index] - '0';
+        if (value > (UINT32_MAX - digit) / 10U)
+            return 0U;
+        value = value * 10U + digit;
+    }
+
+    *duration_ms = value;
+    return 1U;
+}
+
+static uint8_t music_title_matches_lyric(const char *title, const char *lyric)
+{
+    const char *lyric_end;
+    size_t title_length;
+    size_t lyric_length;
+
+    if (title == RT_NULL || lyric == RT_NULL)
+        return 0U;
+    while (*title == ' ')
+        title++;
+    while (*lyric == ' ' || *lyric == '\r' || *lyric == '\n')
+        lyric++;
+    if (*title == '\0' || *lyric == '\0')
+        return 0U;
+
+    lyric_end = lyric;
+    while (*lyric_end != '\0' && *lyric_end != '\r' && *lyric_end != '\n')
+        lyric_end++;
+    title_length = strlen(title);
+    lyric_length = (size_t)(lyric_end - lyric);
+    while (title_length > 0U && title[title_length - 1U] == ' ')
+        title_length--;
+    while (lyric_length > 0U && lyric[lyric_length - 1U] == ' ')
+        lyric_length--;
+
+    return title_length == lyric_length && title_length != 0U &&
+           memcmp(title, lyric, title_length) == 0;
+}
+
+static int music_song_changed(const bt_notify_avrcp_music_detail_t *music_detail)
+{
+    const bt_notify_avrcp_music_detail_info_t *detail =
+        &music_detail->detail_info;
     char title[MUSIC_APP_TEXT_MAX_LEN];
     char artist[MUSIC_APP_TEXT_MAX_LEN];
     char album[MUSIC_APP_TEXT_MAX_LEN];
+    uint32_t duration_ms = 0U;
+    uint8_t duration_valid;
+    int title_changed;
+    int artist_changed;
+    int album_changed;
+    int progress_changed = 0;
     int changed;
 
     music_copy_text(title, detail->song_name.song_name, detail->song_name.size,
@@ -370,20 +434,55 @@ static int music_song_changed(const bt_notify_avrcp_music_detail_info_t *detail)
                     detail->singer_name.size, detail->character_set_id);
     music_copy_text(album, detail->album_info.album_name,
                     detail->album_info.size, detail->character_set_id);
+    duration_valid = music_parse_duration_ms(detail->duration.play_time,
+                                             detail->duration.size,
+                                             &duration_ms);
 
     rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
-    changed = strcmp(title, music_state.snapshot.title) != 0 ||
-              strcmp(artist, music_state.snapshot.artist) != 0 ||
-              strcmp(album, music_state.snapshot.album) != 0;
-    rt_strncpy(music_state.snapshot.title, title, MUSIC_APP_TEXT_MAX_LEN);
-    rt_strncpy(music_state.snapshot.artist, artist, MUSIC_APP_TEXT_MAX_LEN);
-    rt_strncpy(music_state.snapshot.album, album, MUSIC_APP_TEXT_MAX_LEN);
-    if (changed)
+    /* Some players expose their current lyric as a changing AVRCP title. */
+    title_changed = title[0] != '\0' &&
+                    strcmp(title, music_state.snapshot.title) != 0 &&
+                    !music_title_matches_lyric(title,
+                                               music_state.snapshot.lyric);
+    artist_changed = artist[0] != '\0' &&
+                     strcmp(artist, music_state.snapshot.artist) != 0;
+    album_changed = album[0] != '\0' &&
+                    strcmp(album, music_state.snapshot.album) != 0;
+    changed = title_changed || artist_changed || album_changed;
+    if (title_changed)
     {
-        music_state.snapshot.metadata_generation++;
-        music_state.snapshot.lyric[0] = '\0';
-        music_state.snapshot.lyric_generation++;
+        rt_strncpy(music_state.previous_title, music_state.snapshot.title,
+                   MUSIC_APP_TEXT_MAX_LEN);
+        rt_strncpy(music_state.snapshot.title, title, MUSIC_APP_TEXT_MAX_LEN);
+        music_state.title_update_pending = 1U;
     }
+    if (artist_changed)
+        rt_strncpy(music_state.snapshot.artist, artist, MUSIC_APP_TEXT_MAX_LEN);
+    if (album_changed)
+        rt_strncpy(music_state.snapshot.album, album, MUSIC_APP_TEXT_MAX_LEN);
+    if (changed)
+        music_state.snapshot.metadata_generation++;
+    if (title_changed)
+    {
+        music_state.snapshot.playback_position_ms = 0U;
+        music_state.snapshot.playback_position_valid = 0U;
+        progress_changed = 1;
+    }
+    if (duration_valid)
+    {
+        if (!music_state.snapshot.track_duration_valid ||
+            music_state.snapshot.track_duration_ms != duration_ms)
+            progress_changed = 1;
+        music_state.snapshot.track_duration_ms = duration_ms;
+        music_state.snapshot.track_duration_valid = 1U;
+    }
+    else if (changed)
+    {
+        music_state.snapshot.track_duration_ms = 0U;
+        music_state.snapshot.track_duration_valid = 0U;
+    }
+    if (progress_changed)
+        music_state.snapshot.progress_generation++;
     rt_mutex_release(&music_state_lock);
 
     return changed;
@@ -407,6 +506,12 @@ static void music_set_connection(const bt_notify_device_mac_t *address, int conn
     music_state.snapshot.playing = 0;
     music_state.snapshot.volume = volume;
     music_state.snapshot.volume_valid = volume_valid;
+    music_state.snapshot.playback_position_ms = 0U;
+    music_state.snapshot.track_duration_ms = 0U;
+    music_state.snapshot.playback_position_valid = 0U;
+    music_state.snapshot.track_duration_valid = 0U;
+    music_state.snapshot.progress_generation++;
+    music_state.title_update_pending = 0U;
     if (connected)
     {
         music_state.remote_addr = *address;
@@ -513,6 +618,17 @@ void music_app_set_lyric(const uint8_t *text, uint16_t length)
             rt_memcpy(music_state.snapshot.lyric, text, length);
         music_state.snapshot.lyric[length] = '\0';
         music_state.snapshot.lyric_generation++;
+    }
+    if (length != 0U && music_state.title_update_pending)
+    {
+        if (music_title_matches_lyric(music_state.snapshot.title,
+                                      music_state.snapshot.lyric))
+        {
+            rt_strncpy(music_state.snapshot.title,
+                       music_state.previous_title, MUSIC_APP_TEXT_MAX_LEN);
+            music_state.snapshot.metadata_generation++;
+        }
+        music_state.title_update_pending = 0U;
     }
     rt_mutex_release(&music_state_lock);
 }
@@ -704,8 +820,6 @@ int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
 void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
                                uint8_t *data, uint16_t data_len)
 {
-    (void)data_len;
-
     if (type == BT_NOTIFY_A2DP)
     {
         if (event_id == BT_NOTIFY_A2DP_PROFILE_CONNECTED)
@@ -763,7 +877,7 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
         bt_notify_avrcp_music_detail_t *detail =
             (bt_notify_avrcp_music_detail_t *)data;
 
-        if (detail != NULL && music_song_changed(&detail->detail_info))
+        if (detail != NULL && music_song_changed(detail))
         {
             int companion_connected;
 
@@ -786,6 +900,36 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
     {
         rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
         music_state.snapshot.playing = (*(uint8_t *)data == 0);
+        rt_mutex_release(&music_state_lock);
+    }
+    else if (event_id == BT_NOTIFY_AVRCP_SONG_PROGREAS_STATUS &&
+             data != NULL && data_len >= sizeof(uint32_t))
+    {
+        uint32_t position_ms;
+
+        rt_memcpy(&position_ms, data, sizeof(position_ms));
+        if (position_ms != UINT32_MAX)
+        {
+            rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+            if (!music_state.snapshot.playback_position_valid ||
+                music_state.snapshot.playback_position_ms != position_ms)
+            {
+                music_state.snapshot.playback_position_ms = position_ms;
+                music_state.snapshot.playback_position_valid = 1U;
+                music_state.snapshot.progress_generation++;
+            }
+            rt_mutex_release(&music_state_lock);
+        }
+    }
+    else if (event_id == BT_NOTIFY_AVRCP_TRACK_CHANGE_STATUS)
+    {
+        rt_mutex_take(&music_state_lock, RT_WAITING_FOREVER);
+        music_state.snapshot.playback_position_ms = 0U;
+        music_state.snapshot.track_duration_ms = 0U;
+        music_state.snapshot.playback_position_valid = 0U;
+        music_state.snapshot.track_duration_valid = 0U;
+        music_state.snapshot.progress_generation++;
+        music_state.title_update_pending = 0U;
         rt_mutex_release(&music_state_lock);
     }
     else if (event_id == BT_NOTIFY_AVRCP_ABSOLUTE_VOLUME && data != NULL)

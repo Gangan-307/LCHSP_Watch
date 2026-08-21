@@ -20,11 +20,16 @@ typedef struct
     uint32_t metadata_generation;
     uint32_t lyric_generation;
     uint32_t cover_generation;
+    uint32_t progress_generation;
+    uint32_t playback_position_ms;
+    uint32_t track_duration_ms;
     uint8_t connected;
     uint8_t playing;
     uint8_t cover_available;
     uint8_t volume;
     uint8_t volume_valid;
+    uint8_t playback_position_valid;
+    uint8_t track_duration_valid;
 } music_app_snapshot_t;
 
 void music_app_init(void);
