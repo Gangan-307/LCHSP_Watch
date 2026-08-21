@@ -19,6 +19,7 @@
 static struct rt_device_pwm *vibrator_pwm = RT_NULL;
 static rt_timer_t vibrator_timer = RT_NULL;
 static rt_bool_t vibrator_ready = RT_FALSE;
+static rt_bool_t vibrator_enabled = RT_TRUE;
 
 static void vibrator_pwm_off(void)
 {
@@ -94,6 +95,8 @@ rt_err_t vibrator_set(uint8_t percentage, uint32_t period_ns)
 
 rt_err_t vibrator_on(uint8_t percentage)
 {
+    if (!vibrator_enabled)
+        return RT_EOK;
     return vibrator_set(percentage, VIBRATOR_DEFAULT_PERIOD_NS);
 }
 
@@ -110,6 +113,9 @@ void vibrator_off(void)
 rt_err_t vibrator_vibrate(uint8_t percentage, rt_uint32_t duration_ms)
 {
     rt_tick_t timeout_ticks;
+
+    if (!vibrator_enabled)
+        return RT_EOK;
 
     if (vibrator_timer != RT_NULL)
     {
@@ -158,4 +164,16 @@ rt_err_t vibrator_vibrate(uint8_t percentage, rt_uint32_t duration_ms)
     }
 
     return RT_EOK;
+}
+
+int vibrator_is_enabled(void)
+{
+    return vibrator_enabled == RT_TRUE;
+}
+
+void vibrator_set_enabled(int enabled)
+{
+    vibrator_enabled = enabled ? RT_TRUE : RT_FALSE;
+    if (!vibrator_enabled)
+        vibrator_off();
 }

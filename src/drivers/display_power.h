@@ -16,6 +16,8 @@ int display_power_is_off(void);
 uint32_t display_power_get_user_activity_revision(void);
 uint8_t display_power_get_brightness(void);
 void display_power_set_brightness(uint8_t brightness);
+uint16_t display_power_get_idle_timeout(void);
+void display_power_set_idle_timeout(uint16_t seconds);
 
 #ifdef __cplusplus
 }

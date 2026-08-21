@@ -12,6 +12,7 @@ static struct rt_mutex phone_notifications_lock;
 static uint8_t phone_notifications_initialized;
 static phone_notification_snapshot_t phone_notifications;
 static uint16_t phone_notifications_pending_preview_id;
+static uint8_t phone_notifications_do_not_disturb;
 
 static uint8_t phone_notifications_app_is_valid(uint8_t app)
 {
@@ -47,6 +48,33 @@ void phone_notifications_init(void)
     phone_notifications_initialized = 1U;
 }
 
+void phone_notifications_set_do_not_disturb(uint8_t enabled)
+{
+    if (!phone_notifications_initialized)
+    {
+        phone_notifications_do_not_disturb = enabled ? 1U : 0U;
+        return;
+    }
+
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    phone_notifications_do_not_disturb = enabled ? 1U : 0U;
+    if (phone_notifications_do_not_disturb)
+        phone_notifications_pending_preview_id = 0U;
+    rt_mutex_release(&phone_notifications_lock);
+}
+
+uint8_t phone_notifications_is_do_not_disturb(void)
+{
+    uint8_t enabled;
+
+    if (!phone_notifications_initialized)
+        return phone_notifications_do_not_disturb;
+    rt_mutex_take(&phone_notifications_lock, RT_WAITING_FOREVER);
+    enabled = phone_notifications_do_not_disturb;
+    rt_mutex_release(&phone_notifications_lock);
+    return enabled;
+}
+
 rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
                                     uint8_t hour, uint8_t minute,
                                     const uint8_t *title, uint16_t title_len,
@@ -54,6 +82,7 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
 {
     uint8_t index;
     uint8_t should_vibrate = 0U;
+    uint8_t should_alert = 0U;
     phone_notification_t *item = RT_NULL;
 
     if (!phone_notifications_initialized || id == 0U ||
@@ -127,12 +156,13 @@ rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,
         rt_memcpy(item->body, body, body_len);
     item->title[title_len] = '\0';
     item->body[body_len] = '\0';
-    if (should_vibrate)
+    should_alert = should_vibrate && !phone_notifications_do_not_disturb;
+    if (should_alert)
         phone_notifications_pending_preview_id = id;
     phone_notifications.revision++;
     rt_mutex_release(&phone_notifications_lock);
 
-    if (should_vibrate)
+    if (should_alert)
     {
         (void)vibrator_vibrate(NOTIFICATION_VIBRATION_LEVEL,
                                NOTIFICATION_VIBRATION_MS);

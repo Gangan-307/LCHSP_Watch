@@ -43,6 +43,8 @@ typedef struct
 
 /* Prepare the in-memory recent-message cache used by the companion BLE service. */
 void phone_notifications_init(void);
+void phone_notifications_set_do_not_disturb(uint8_t enabled);
+uint8_t phone_notifications_is_do_not_disturb(void);
 
 /* Insert or replace a recent notification. title and body are UTF-8 byte strings. */
 rt_err_t phone_notifications_upsert(uint16_t id, uint8_t app,

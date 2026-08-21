@@ -113,6 +113,10 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Safe_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_SETTINGS:
+        ui_Settings_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_WORLD_CLOCK:
         home_pager_load_page(HOME_PAGER_PAGE_HOME,
                              LV_SCR_LOAD_ANIM_FADE_ON, 180);
@@ -164,6 +168,7 @@ void ui_destroy(void)
     ui_Alarm_screen_destroy();
     ui_AppGrid_screen_destroy();
     ui_Safe_screen_destroy();
+    ui_Settings_screen_destroy();
     ui_WeatherDetails_screen_destroy();
     ui_MapDetails_screen_destroy();
 }

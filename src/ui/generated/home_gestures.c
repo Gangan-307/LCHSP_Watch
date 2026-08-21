@@ -11,6 +11,7 @@
 #include "services/battery_ui.h"
 #include "services/phone_notifications.h"
 #include "services/wrist_wake.h"
+#include "services/watch_settings.h"
 #include "ui/system/system_power_ui.h"
 #include "lv_ext_resource_manager.h"
 
@@ -515,7 +516,7 @@ static lv_obj_t *home_gestures_add_slider(lv_obj_t *parent, lv_coord_t y,
     lv_obj_set_style_pad_all(slider, 3, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_shadow_width(slider, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_outline_width(slider, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_add_event_cb(slider, event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(slider, event_cb, LV_EVENT_ALL, NULL);
 
     if (slider_out != NULL)
         *slider_out = slider;
@@ -528,11 +529,15 @@ static lv_obj_t *home_gestures_add_slider(lv_obj_t *parent, lv_coord_t y,
 static void home_gestures_refresh_controls(void)
 {
     music_app_snapshot_t music_snapshot;
+    watch_settings_snapshot_t settings_snapshot;
     uint8_t brightness;
     uint8_t volume_percent;
 
     if (controls_screen == NULL)
         return;
+
+    watch_settings_get_snapshot(&settings_snapshot);
+    control_low_power_enabled = settings_snapshot.low_power_enabled;
 
     if (control_bluetooth_value != NULL)
     {
@@ -735,7 +740,7 @@ static void home_gestures_silent_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
-        music_app_set_speaker_muted(!music_app_is_speaker_muted());
+        watch_settings_set_muted(!music_app_is_speaker_muted());
         home_gestures_refresh_controls();
     }
 }
@@ -756,8 +761,7 @@ static void home_gestures_low_power_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
-        /* UI-only state until low-power policy is connected here. */
-        control_low_power_enabled = !control_low_power_enabled;
+        watch_settings_set_low_power(!control_low_power_enabled);
         home_gestures_refresh_controls();
     }
 }
@@ -766,7 +770,7 @@ static void home_gestures_wrist_event(lv_event_t *event)
 {
     if (lv_event_get_code(event) == LV_EVENT_SHORT_CLICKED)
     {
-        wrist_wake_set_enabled(!wrist_wake_is_enabled());
+        watch_settings_set_wrist_wake(!wrist_wake_is_enabled());
         home_gestures_refresh_controls();
     }
 }
@@ -777,6 +781,11 @@ static void home_gestures_brightness_event(lv_event_t *event)
     {
         display_power_set_brightness((uint8_t)lv_slider_get_value(lv_event_get_target(event)));
         home_gestures_refresh_controls();
+    }
+    else if (lv_event_get_code(event) == LV_EVENT_RELEASED)
+    {
+        watch_settings_set_brightness(
+            (uint8_t)lv_slider_get_value(lv_event_get_target(event)));
     }
 }
 
@@ -789,6 +798,15 @@ static void home_gestures_volume_event(lv_event_t *event)
 
         music_app_set_volume(volume);
         home_gestures_refresh_controls();
+    }
+    else if (lv_event_get_code(event) == LV_EVENT_RELEASED)
+    {
+        uint8_t percent =
+            (uint8_t)lv_slider_get_value(lv_event_get_target(event));
+        uint8_t volume =
+            (uint8_t)((percent * 127U + 50U) / 100U);
+
+        watch_settings_set_volume(volume);
     }
 }
 

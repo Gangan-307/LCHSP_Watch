@@ -28,6 +28,7 @@ module_dirs = [
     'ui/alarm',
     'ui/app_grid',
     'ui/safe',
+    'ui/settings',
     'ui/system',
     'ui/generated',
     'ui/generated/components',

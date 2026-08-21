@@ -26,6 +26,7 @@
 #include "services/watch_key_router.h"
 #include "services/wrist_wake.h"
 #include "services/compass_service.h"
+#include "services/watch_settings.h"
 #include "bluetooth/music_app.h"
 
 #if defined(RT_USING_DFS) && defined(FS_REGION_START_ADDR) && \
@@ -93,6 +94,7 @@ int main(void)
     input_wake_init();
     watch_key_router_init();
     wrist_wake_init();
+    watch_settings_init();
     compass_service_init();
     bt_pan_app_init();
 

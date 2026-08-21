@@ -11,6 +11,7 @@ set(SOURCES
     services/rtc.c
     services/time_sync.c
     services/watch_key_router.c
+    services/watch_settings.c
     services/wrist_wake.c
     bluetooth/battery_ble.c
     bluetooth/find_phone_ble.c
@@ -21,6 +22,7 @@ set(SOURCES
     ui/music/music_ui.c
     ui/app_grid/app_grid_ui.c
     ui/safe/safe_ui.c
+    ui/settings/settings_ui.c
     ui/system/system_power_ui.c
     ui/generated/ui.c
     ui/generated/hsp_font_cjk_22.c
@@ -47,5 +49,6 @@ target_include_directories(ui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/music
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/app_grid
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/safe
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui/settings
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/system
     ${CMAKE_CURRENT_SOURCE_DIR}/ui/generated)

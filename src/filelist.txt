@@ -10,6 +10,7 @@ services/power_manager.c
 services/rtc.c
 services/time_sync.c
 services/watch_key_router.c
+services/watch_settings.c
 services/wrist_wake.c
 bluetooth/battery_ble.c
 bluetooth/find_phone_ble.c
@@ -19,6 +20,7 @@ ui/details/ui_WeatherDetails.c
 ui/details/ui_MapDetails.c
 ui/music/music_ui.c
 ui/app_grid/app_grid_ui.c
+ui/settings/settings_ui.c
 ui/system/system_power_ui.c
 ui/generated/ui.c
 ui/generated/home_gestures.c

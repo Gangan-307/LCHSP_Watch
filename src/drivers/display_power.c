@@ -7,7 +7,7 @@
 #include "lvgl.h"
 #include "display_power.h"
 
-#define DISPLAY_IDLE_TIMEOUT_MS       (15000U)
+#define DISPLAY_DEFAULT_IDLE_TIMEOUT_MS (15000U)
 #define DISPLAY_CHECK_PERIOD_MS       (200U)
 #define DISPLAY_DEFAULT_BRIGHTNESS    (100U)
 
@@ -17,6 +17,7 @@ extern lv_indev_t *touch_get_indev_handler(void);
 static rt_device_t lcd_device;
 static lv_indev_t *touch_indev;
 static uint8_t saved_brightness = DISPLAY_DEFAULT_BRIGHTNESS;
+static uint32_t display_idle_timeout_ms = DISPLAY_DEFAULT_IDLE_TIMEOUT_MS;
 static int display_is_off;
 static uint8_t display_forced_off;
 static void (*touch_read_cb)(lv_indev_drv_t *drv, lv_indev_data_t *data);
@@ -151,6 +152,20 @@ void display_power_set_brightness(uint8_t brightness)
         display_set_brightness(saved_brightness);
 }
 
+uint16_t display_power_get_idle_timeout(void)
+{
+    return (uint16_t)(display_idle_timeout_ms / 1000U);
+}
+
+void display_power_set_idle_timeout(uint16_t seconds)
+{
+    if (seconds < 5U)
+        seconds = 5U;
+    else if (seconds > 300U)
+        seconds = 300U;
+    display_idle_timeout_ms = (uint32_t)seconds * 1000U;
+}
+
 static void display_power_timer_cb(lv_timer_t *timer)
 {
     uint32_t inactive_time;
@@ -160,10 +175,10 @@ static void display_power_timer_cb(lv_timer_t *timer)
     inactive_time = lv_disp_get_inactive_time(NULL);
     if (display_is_off)
     {
-        if (!display_forced_off && inactive_time < DISPLAY_IDLE_TIMEOUT_MS)
+        if (!display_forced_off && inactive_time < display_idle_timeout_ms)
             display_power_wake();
     }
-    else if (inactive_time >= DISPLAY_IDLE_TIMEOUT_MS)
+    else if (inactive_time >= display_idle_timeout_ms)
     {
         display_turn_off(0U);
     }

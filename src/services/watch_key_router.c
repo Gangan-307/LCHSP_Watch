@@ -11,6 +11,7 @@
 #include "ui/compass/compass_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/safe/safe_ui.h"
+#include "ui/settings/settings_ui.h"
 #include "ui/details/ui_MapDetails.h"
 #include "ui/details/ui_WeatherDetails.h"
 #include "ui/generated/home_gestures.h"
@@ -60,6 +61,8 @@ static void watch_key_router_back(void)
         ui_Alarm_return();
     else if (active_screen == ui_Safe)
         ui_Safe_return();
+    else if (active_screen == ui_Settings)
+        ui_Settings_return();
 }
 
 static void watch_key_router_event(input_wake_key_t key,
