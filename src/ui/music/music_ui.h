@@ -16,6 +16,7 @@ void ui_ScreenMusic_open_from_home(void);
 void ui_ScreenMusic_open_from_app_grid(void);
 void ui_ScreenMusic_return(void);
 void ui_ScreenMusic_set_app_grid_source(uint8_t from_app_grid);
+void ui_ScreenMusic_adjust_volume(int delta);
 
 #ifdef __cplusplus
 }

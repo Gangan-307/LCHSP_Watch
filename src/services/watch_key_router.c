@@ -16,6 +16,7 @@
 #include "ui/details/ui_WeatherDetails.h"
 #include "ui/generated/home_gestures.h"
 #include "ui/generated/home_pager.h"
+#include "ui/music/music_ui.h"
 #include "ui/water/water_ui.h"
 #include "ui/tomato/tomato_ui.h"
 #include "ui/generated/ui.h"
@@ -119,7 +120,7 @@ static void watch_key_router_event(input_wake_key_t key,
 
     if (home_pager_is_active(HOME_PAGER_PAGE_MUSIC))
     {
-        music_app_adjust_volume(key == INPUT_WAKE_KEY1 ? 1 : -1);
+        ui_ScreenMusic_adjust_volume(key == INPUT_WAKE_KEY1 ? 1 : -1);
         return;
     }
 
