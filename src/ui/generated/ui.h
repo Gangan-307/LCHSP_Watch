@@ -31,6 +31,8 @@ extern "C" {
 #include "ui/camera/camera_ui.h"
 #include "ui/compass/compass_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
+#include "ui/tf_file_manager/tf_file_manager_ui.h"
+#include "ui/record/record_ui.h"
 #include "ui/safe/safe_ui.h"
 #include "ui/settings/settings_ui.h"
 #include "ui_WeatherDetails.h"

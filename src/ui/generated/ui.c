@@ -113,6 +113,14 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Safe_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_BIKE_STOPWATCH:
+        ui_TfFileManager_open_from_app_grid();
+        return 1U;
+
+    case APP_GRID_APP_RECORD:
+        ui_Record_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_SETTINGS:
         ui_Settings_open_from_app_grid();
         return 1U;
@@ -144,6 +152,8 @@ void ui_init(void)
     ui_Water_init();
     ui_Tomato_init();
     ui_Camera_init();
+    ui_TfFileManager_screen_init();
+    ui_Record_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
     home_gestures_init();
     ui____initial_actions0 = lv_obj_create(NULL);
@@ -167,6 +177,8 @@ void ui_destroy(void)
     ui_ScreenMusic_screen_destroy();
     ui_Alarm_screen_destroy();
     ui_AppGrid_screen_destroy();
+    ui_TfFileManager_screen_destroy();
+    ui_Record_screen_destroy();
     ui_Safe_screen_destroy();
     ui_Settings_screen_destroy();
     ui_WeatherDetails_screen_destroy();

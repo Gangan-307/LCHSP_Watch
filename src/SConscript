@@ -27,6 +27,8 @@ module_dirs = [
     'ui/music',
     'ui/alarm',
     'ui/app_grid',
+    'ui/tf_file_manager',
+    'ui/record',
     'ui/safe',
     'ui/settings',
     'ui/system',
