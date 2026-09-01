@@ -27,33 +27,8 @@
 #include "services/wrist_wake.h"
 #include "services/compass_service.h"
 #include "services/watch_settings.h"
+#include "services/internal_storage.h"
 #include "bluetooth/music_app.h"
-
-#if defined(RT_USING_DFS) && defined(FS_REGION_START_ADDR) && \
-    defined(FS_REGION_SIZE)
-#include "dfs_file.h"
-#include "dfs_posix.h"
-#include "drv_flash.h"
-
-#define MUSIC_FS_DEVICE_NAME "musicfs"
-
-/* Cover Art packets must be saved before LVGL can decode them. */
-static int music_fs_mount_init(void)
-{
-    register_mtd_device(FS_REGION_START_ADDR, FS_REGION_SIZE,
-                        MUSIC_FS_DEVICE_NAME);
-
-    if (dfs_mount(MUSIC_FS_DEVICE_NAME, "/", "elm", 0, 0) != RT_EOK)
-    {
-        rt_kprintf("music: filesystem is not mounted; cover art cannot be saved\n");
-        return RT_ERROR;
-    }
-
-    rt_kprintf("music: filesystem mounted\n");
-    return RT_EOK;
-}
-INIT_ENV_EXPORT(music_fs_mount_init);
-#endif
 
 extern void bt_pan_app_init(void);
 
@@ -69,6 +44,7 @@ int main(void)
 
     power_manager_boot_gate();
     power_manager_startup_feedback();
+    (void)internal_storage_init();
     rtc_config();
     set_date_time();
     phone_sync_init();

@@ -7,14 +7,15 @@
 #include "string.h"
 #include "bts2_app_inc.h"
 #include "music_app.h"
+#include "services/internal_storage.h"
 
 #ifdef AUDIO_USING_MANAGER
 #include "audio_server.h"
 #endif
 
-#define MUSIC_COVER_FILE "cover.jpg"
-#define MUSIC_PHONE_COVER_TEMP_FILE "cvphone.tmp"
-#define MUSIC_COVER_BACKUP_FILE "cvbak.jpg"
+#define MUSIC_COVER_FILE "/cover.jpg"
+#define MUSIC_PHONE_COVER_TEMP_FILE "/cvphone.tmp"
+#define MUSIC_COVER_BACKUP_FILE "/cvbak.jpg"
 #define MUSIC_COVER_RETRY_MS (800U)
 #define MUSIC_COVER_RETRY_MAX (10U)
 #define MUSIC_PHONE_COVER_TIMEOUT_MS (8000U)
@@ -707,10 +708,17 @@ int music_app_phone_cover_begin(uint16_t generation, uint32_t total_length,
     /* The companion cover is authoritative while it is transferring. */
     music_discard_cover_file();
     music_app_phone_cover_cancel();
+    if (internal_storage_ensure_ready() != RT_EOK)
+    {
+        rt_kprintf("music: internal storage is unavailable\n");
+        return -1;
+    }
+    rt_set_errno(0);
     phone_cover_file = fopen(MUSIC_PHONE_COVER_TEMP_FILE, "wb");
     if (phone_cover_file == RT_NULL)
     {
-        rt_kprintf("music: cannot open phone cover temporary file\n");
+        rt_kprintf("music: cannot open %s, errno=%d\n",
+                   MUSIC_PHONE_COVER_TEMP_FILE, rt_get_errno());
         return -1;
     }
 
@@ -748,10 +756,12 @@ static int music_app_phone_cover_finish(void)
     had_previous_cover = rename(MUSIC_COVER_FILE, MUSIC_COVER_BACKUP_FILE) == 0;
     if (rename(MUSIC_PHONE_COVER_TEMP_FILE, MUSIC_COVER_FILE) != 0)
     {
+        int error = rt_get_errno();
+
         if (had_previous_cover)
             (void)rename(MUSIC_COVER_BACKUP_FILE, MUSIC_COVER_FILE);
         music_app_phone_cover_cancel();
-        rt_kprintf("music: cannot install phone cover\n");
+        rt_kprintf("music: cannot install phone cover, errno=%d\n", error);
         return -1;
     }
     if (had_previous_cover)
@@ -805,6 +815,10 @@ int music_app_phone_cover_data(uint16_t generation, uint32_t offset,
     written = fwrite(data, sizeof(uint8_t), length, phone_cover_file);
     if (written != length)
     {
+        int error = rt_get_errno();
+
+        rt_kprintf("music: cover write failed (%u/%u), errno=%d\n",
+                   (unsigned int)written, (unsigned int)length, error);
         music_app_phone_cover_cancel();
         return -1;
     }
@@ -991,11 +1005,18 @@ void music_app_handle_bt_event(uint16_t type, uint16_t event_id,
             rt_kprintf("music: receiving cover, total %u bytes\n",
                        packet->total_length);
 
+        if (cover_file == NULL &&
+            internal_storage_ensure_ready() != RT_EOK)
+        {
+            rt_kprintf("music: internal storage is unavailable\n");
+            return;
+        }
         if (cover_file == NULL)
             cover_file = fopen(MUSIC_COVER_FILE, "wb");
         if (cover_file == NULL)
         {
-            rt_kprintf("music: cannot open %s for writing\n", MUSIC_COVER_FILE);
+            rt_kprintf("music: cannot open %s for writing, errno=%d\n",
+                       MUSIC_COVER_FILE, rt_get_errno());
             return;
         }
 

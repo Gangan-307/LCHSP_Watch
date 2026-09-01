@@ -3,10 +3,11 @@
 #include <stdio.h>
 
 #include "rtthread.h"
+#include "services/internal_storage.h"
 
-#define CAMERA_PHOTO_FILE        "camera.jpg"
-#define CAMERA_PHOTO_TEMP_FILE   "camera.tmp"
-#define CAMERA_PHOTO_BACKUP_FILE "camera.bak"
+#define CAMERA_PHOTO_FILE        "/camera.jpg"
+#define CAMERA_PHOTO_TEMP_FILE   "/camera.tmp"
+#define CAMERA_PHOTO_BACKUP_FILE "/camera.bak"
 
 static FILE *camera_photo_file;
 static uint16_t camera_photo_generation;
@@ -70,9 +71,18 @@ int camera_photo_begin(uint16_t generation, uint32_t total_length,
     }
 
     camera_photo_cancel();
+    if (internal_storage_ensure_ready() != RT_EOK)
+    {
+        rt_kprintf("camera: internal storage is unavailable\n");
+        camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
+        return -1;
+    }
+    rt_set_errno(0);
     camera_photo_file = fopen(CAMERA_PHOTO_TEMP_FILE, "wb");
     if (camera_photo_file == RT_NULL)
     {
+        rt_kprintf("camera: cannot open %s, errno=%d\n",
+                   CAMERA_PHOTO_TEMP_FILE, rt_get_errno());
         camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
         return -1;
     }
@@ -97,6 +107,9 @@ static int camera_photo_finish(void)
     if (camera_photo_received_bytes != camera_photo_expected_bytes ||
         actual_crc32 != camera_photo_expected_crc32)
     {
+        rt_kprintf("camera: rejected preview (%u/%u bytes, crc %08x/%08x)\n",
+                   camera_photo_received_bytes, camera_photo_expected_bytes,
+                   actual_crc32, camera_photo_expected_crc32);
         camera_photo_cancel();
         camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
         return -1;
@@ -107,9 +120,12 @@ static int camera_photo_finish(void)
                                 CAMERA_PHOTO_BACKUP_FILE) == 0;
     if (rename(CAMERA_PHOTO_TEMP_FILE, CAMERA_PHOTO_FILE) != 0)
     {
+        int error = rt_get_errno();
+
         if (had_previous_photo)
             (void)rename(CAMERA_PHOTO_BACKUP_FILE, CAMERA_PHOTO_FILE);
         camera_photo_cancel();
+        rt_kprintf("camera: cannot install preview, errno=%d\n", error);
         camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
         return -1;
     }
@@ -140,6 +156,11 @@ int camera_photo_data(uint16_t generation, uint32_t offset,
         offset != camera_photo_received_bytes ||
         offset + length > camera_photo_expected_bytes)
     {
+        rt_kprintf("camera: rejected packet (gen %u/%u, offset %u/%u, "
+                   "len %u, total %u)\n",
+                   generation, camera_photo_generation, offset,
+                   camera_photo_received_bytes, length,
+                   camera_photo_expected_bytes);
         camera_photo_cancel();
         camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
         return -1;
@@ -148,6 +169,10 @@ int camera_photo_data(uint16_t generation, uint32_t offset,
     written = fwrite(data, sizeof(uint8_t), length, camera_photo_file);
     if (written != length)
     {
+        int error = rt_get_errno();
+
+        rt_kprintf("camera: preview write failed (%u/%u), errno=%d\n",
+                   (unsigned int)written, (unsigned int)length, error);
         camera_photo_cancel();
         camera_photo_notify(CAMERA_PHOTO_EVENT_ERROR);
         return -1;
