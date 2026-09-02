@@ -3,8 +3,10 @@
  */
 
 #include "rtthread.h"
+#include <stdio.h>
 #include <string.h>
 #include "mem_section.h"
+#include "tjpgd.h"
 #include "ui/generated/ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 #include "ui/generated/home_pager.h"
@@ -17,6 +19,7 @@
 #define MUSIC_COVER_SIZE (184)
 #define MUSIC_COVER_FRAME_SIZE (MUSIC_COVER_SIZE + 4)
 #define MUSIC_COVER_SOURCE_MAX_EDGE (128U)
+#define MUSIC_COVER_JPEG_WORK_SIZE (4096U)
 #define MUSIC_COVER_DECODE_RETRY_MAX (6U)
 
 lv_obj_t *ui_ScreenMusic;
@@ -34,9 +37,12 @@ static lv_obj_t *music_source_bt_label;
 L2_NON_RET_BSS_SECT_BEGIN(music_cover)
 L2_NON_RET_BSS_SECT(
     music_cover,
-    ALIGN(64) static uint8_t music_cover_pixels[
-        MUSIC_COVER_SOURCE_MAX_EDGE * MUSIC_COVER_SOURCE_MAX_EDGE *
-        sizeof(lv_color_t)]);
+    ALIGN(64) static lv_color_t music_cover_pixels[
+        MUSIC_COVER_SOURCE_MAX_EDGE * MUSIC_COVER_SOURCE_MAX_EDGE]);
+L2_NON_RET_BSS_SECT(
+    music_cover,
+    ALIGN(64) static uint8_t
+        music_cover_jpeg_work[MUSIC_COVER_JPEG_WORK_SIZE]);
 L2_NON_RET_BSS_SECT_END
 static lv_img_dsc_t music_cover_dsc;
 static uint32_t displayed_cover_generation;
@@ -65,6 +71,15 @@ typedef enum
     MUSIC_UI_MODE_BLUETOOTH,
     MUSIC_UI_MODE_TF_CARD,
 } music_ui_mode_t;
+
+typedef struct
+{
+    FILE *file;
+    lv_color_t *pixels;
+    uint16_t width;
+    uint16_t height;
+    uint8_t output_failed;
+} music_cover_decode_context_t;
 
 static music_ui_source_t music_ui_source = MUSIC_UI_SOURCE_HOME;
 static music_ui_mode_t music_ui_mode = MUSIC_UI_MODE_BLUETOOTH;
@@ -322,48 +337,118 @@ static lv_obj_t *music_ui_create_button(lv_obj_t *parent, const char *symbol,
     return button;
 }
 
-static uint8_t music_ui_decode_cover(const lv_img_header_t *header)
+static size_t music_ui_jpeg_input(JDEC *decoder, uint8_t *buffer,
+                                  size_t length)
 {
-    lv_img_decoder_dsc_t decoder;
-    uint16_t row;
+    music_cover_decode_context_t *context = decoder->device;
 
-    if (header->w > MUSIC_COVER_SOURCE_MAX_EDGE ||
-        header->h > MUSIC_COVER_SOURCE_MAX_EDGE)
+    if (context == NULL || context->file == NULL)
         return 0U;
-
-    lv_memset_00(&music_cover_dsc, sizeof(music_cover_dsc));
-    music_cover_dsc.header.always_zero = 0U;
-    music_cover_dsc.header.w = header->w;
-    music_cover_dsc.header.h = header->h;
-    music_cover_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
-    music_cover_dsc.data_size =
-        (uint32_t)header->w * header->h * sizeof(lv_color_t);
-    music_cover_dsc.data = music_cover_pixels;
-
-    if (lv_img_decoder_open(&decoder, MUSIC_COVER_PATH,
-                            lv_color_black(), 0) != LV_RES_OK)
+    if (buffer != NULL)
+        return fread(buffer, 1U, length, context->file);
+    if (fseek(context->file, (long)length, SEEK_CUR) != 0)
         return 0U;
+    return length;
+}
 
-    for (row = 0U; row < header->h; row++)
+static int music_ui_jpeg_output(JDEC *decoder, void *bitmap, JRECT *rectangle)
+{
+    music_cover_decode_context_t *context = decoder->device;
+    const uint8_t *source = bitmap;
+    uint16_t block_width;
+    uint16_t x;
+    uint16_t y;
+
+    if (context == NULL || source == NULL || rectangle == NULL ||
+        rectangle->left > rectangle->right ||
+        rectangle->top > rectangle->bottom ||
+        rectangle->right >= context->width ||
+        rectangle->bottom >= context->height)
     {
-        uint8_t *line = music_cover_pixels +
-                        (uint32_t)row * header->w * sizeof(lv_color_t);
+        if (context != NULL)
+            context->output_failed = 1U;
+        return 0;
+    }
 
-        if (lv_img_decoder_read_line(&decoder, 0, row, header->w, line) !=
-            LV_RES_OK)
+    block_width = rectangle->right - rectangle->left + 1U;
+    for (y = rectangle->top; y <= rectangle->bottom; y++)
+    {
+        lv_color_t *destination = context->pixels +
+                                  (uint32_t)y * context->width +
+                                  rectangle->left;
+
+        for (x = 0U; x < block_width; x++)
         {
-            lv_img_decoder_close(&decoder);
-            return 0U;
+            destination[x] = lv_color_make(source[0], source[1], source[2]);
+            source += 3;
         }
     }
 
-    lv_img_decoder_close(&decoder);
+    return 1;
+}
+
+static uint8_t music_ui_decode_cover(void)
+{
+    music_cover_decode_context_t context;
+    JDEC decoder;
+    JRESULT result;
+
+    lv_memset_00(&context, sizeof(context));
+    context.file = fopen(MUSIC_COVER_PATH, "rb");
+    context.pixels = music_cover_pixels;
+    if (context.file == NULL)
+    {
+        rt_kprintf("music: cannot open %s\n", MUSIC_COVER_PATH);
+        return 0U;
+    }
+
+    result = jd_prepare(&decoder, music_ui_jpeg_input,
+                        music_cover_jpeg_work,
+                        sizeof(music_cover_jpeg_work), &context);
+    if (result != JDR_OK)
+    {
+        rt_kprintf("music: JPEG prepare failed: %d\n", result);
+        fclose(context.file);
+        return 0U;
+    }
+
+    if (decoder.width == 0U || decoder.height == 0U ||
+        decoder.width > MUSIC_COVER_SOURCE_MAX_EDGE ||
+        decoder.height > MUSIC_COVER_SOURCE_MAX_EDGE)
+    {
+        rt_kprintf("music: unsupported cover size %ux%u (max %ux%u)\n",
+                   (unsigned int)decoder.width,
+                   (unsigned int)decoder.height,
+                   (unsigned int)MUSIC_COVER_SOURCE_MAX_EDGE,
+                   (unsigned int)MUSIC_COVER_SOURCE_MAX_EDGE);
+        fclose(context.file);
+        return 0U;
+    }
+
+    context.width = decoder.width;
+    context.height = decoder.height;
+    result = jd_decomp(&decoder, music_ui_jpeg_output, 0U);
+    fclose(context.file);
+    if (result != JDR_OK || context.output_failed)
+    {
+        rt_kprintf("music: JPEG decode failed: %d%s\n", result,
+                   context.output_failed ? " (output bounds)" : "");
+        return 0U;
+    }
+
+    lv_memset_00(&music_cover_dsc, sizeof(music_cover_dsc));
+    music_cover_dsc.header.always_zero = 0U;
+    music_cover_dsc.header.w = decoder.width;
+    music_cover_dsc.header.h = decoder.height;
+    music_cover_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+    music_cover_dsc.data_size =
+        (uint32_t)decoder.width * decoder.height * sizeof(lv_color_t);
+    music_cover_dsc.data = (const uint8_t *)music_cover_pixels;
     return 1U;
 }
 
 static void music_ui_refresh_cover(uint32_t generation)
 {
-    lv_img_header_t header;
     uint32_t fit_x;
     uint32_t fit_y;
     uint32_t fit_zoom;
@@ -371,44 +456,41 @@ static void music_ui_refresh_cover(uint32_t generation)
     if (generation == displayed_cover_generation)
         return;
 
-    lv_img_cache_invalidate_src(MUSIC_COVER_PATH);
-    if (lv_img_decoder_get_info(MUSIC_COVER_PATH, &header) != LV_RES_OK ||
-        header.w == 0 || header.h == 0)
+    lv_img_cache_invalidate_src(&music_cover_dsc);
+    if (!music_ui_decode_cover())
     {
+        lv_obj_add_flag(music_cover, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(music_cover_placeholder, LV_OBJ_FLAG_HIDDEN);
         if (failed_cover_generation != generation)
         {
             failed_cover_generation = generation;
             failed_cover_attempts = 0U;
         }
         failed_cover_attempts++;
-        rt_kprintf("music: LVGL cover decode retry %u/%u\n",
-                   failed_cover_attempts, MUSIC_COVER_DECODE_RETRY_MAX);
+        rt_kprintf("music: cover decode retry %u/%u\n",
+                   (unsigned int)failed_cover_attempts,
+                   (unsigned int)MUSIC_COVER_DECODE_RETRY_MAX);
         if (failed_cover_attempts >= MUSIC_COVER_DECODE_RETRY_MAX)
         {
-            rt_kprintf("music: LVGL cannot decode %s\n", MUSIC_COVER_PATH);
+            rt_kprintf("music: cannot decode %s\n", MUSIC_COVER_PATH);
             music_app_reject_cover(generation);
         }
         return;
     }
 
     lv_obj_add_flag(music_cover, LV_OBJ_FLAG_HIDDEN);
-    lv_img_cache_invalidate_src(&music_cover_dsc);
-    if (music_ui_decode_cover(&header))
-    {
-        fit_x = MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE / header.w;
-        fit_y = MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE / header.h;
-        fit_zoom = fit_x < fit_y ? fit_x : fit_y;
-        lv_img_set_src(music_cover, &music_cover_dsc);
-        lv_img_set_pivot(music_cover, header.w / 2, header.h / 2);
-        lv_img_set_zoom(music_cover, (uint16_t)fit_zoom);
-    }
-    else
-    {
-        rt_kprintf("music: cover is %ux%u; displaying without JPG zoom\n",
-                   header.w, header.h);
-        lv_img_set_src(music_cover, MUSIC_COVER_PATH);
-        lv_img_set_zoom(music_cover, LV_IMG_ZOOM_NONE);
-    }
+    fit_x = MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE / music_cover_dsc.header.w;
+    fit_y = MUSIC_COVER_SIZE * LV_IMG_ZOOM_NONE / music_cover_dsc.header.h;
+    fit_zoom = fit_x < fit_y ? fit_x : fit_y;
+    lv_img_set_src(music_cover, &music_cover_dsc);
+    lv_img_set_pivot(music_cover, music_cover_dsc.header.w / 2,
+                     music_cover_dsc.header.h / 2);
+    lv_img_set_antialias(music_cover, true);
+    lv_img_set_zoom(music_cover, (uint16_t)fit_zoom);
+    rt_kprintf("music: cover decoded to RGB565, %ux%u, zoom=%u\n",
+               (unsigned int)music_cover_dsc.header.w,
+               (unsigned int)music_cover_dsc.header.h,
+               (unsigned int)fit_zoom);
 
     displayed_cover_generation = generation;
     failed_cover_generation = 0;
