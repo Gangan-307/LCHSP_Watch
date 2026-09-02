@@ -1,6 +1,7 @@
 #include "camera_ui.h"
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "bluetooth/find_phone_ble.h"
 #include "bluetooth/pan.h"
@@ -8,6 +9,7 @@
 #include "lv_ext_resource_manager.h"
 #include "mem_section.h"
 #include "services/camera_photo_service.h"
+#include "tjpgd.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 #include "ui/generated/ui_swipe_back.h"
@@ -35,6 +37,7 @@ LV_IMG_DECLARE(tomato_num9);
 #define CAMERA_TICK_VIBRATION_MS     (65U)
 #define CAMERA_CAPTURE_VIBRATION_MS  (110U)
 #define CAMERA_PHOTO_MAX_EDGE        (160U)
+#define CAMERA_JPEG_WORK_SIZE         (4096U)
 #define CAMERA_PREVIEW_FIT_WIDTH     (360U)
 #define CAMERA_PREVIEW_FIT_HEIGHT    (360U)
 #define CAMERA_PREVIEW_ZOOM_STEP     (96U)
@@ -51,8 +54,11 @@ static uint8_t camera_countdown_remaining;
 L2_NON_RET_BSS_SECT_BEGIN(camera_preview)
 L2_NON_RET_BSS_SECT(
     camera_preview,
-    ALIGN(64) static uint8_t camera_preview_pixels[
-        CAMERA_PHOTO_MAX_EDGE * CAMERA_PHOTO_MAX_EDGE * sizeof(lv_color_t)]);
+    ALIGN(64) static lv_color_t camera_preview_pixels[
+        CAMERA_PHOTO_MAX_EDGE * CAMERA_PHOTO_MAX_EDGE]);
+L2_NON_RET_BSS_SECT(
+    camera_preview,
+    ALIGN(64) static uint8_t camera_jpeg_work[CAMERA_JPEG_WORK_SIZE]);
 L2_NON_RET_BSS_SECT_END
 static lv_img_dsc_t camera_preview_dsc;
 static lv_img_dsc_t *camera_preview_buffer;
@@ -69,6 +75,27 @@ typedef enum
     CAMERA_UI_MAIN,
     CAMERA_UI_PREVIEW,
 } camera_ui_state_t;
+
+typedef enum
+{
+    CAMERA_DECODE_OK,
+    CAMERA_DECODE_FILE_ERROR,
+    CAMERA_DECODE_FORMAT_ERROR,
+    CAMERA_DECODE_MEMORY_ERROR,
+    CAMERA_DECODE_SIZE_ERROR,
+    CAMERA_DECODE_INPUT_ERROR,
+    CAMERA_DECODE_OUTPUT_ERROR,
+} camera_decode_result_t;
+
+typedef struct
+{
+    FILE *file;
+    lv_color_t *pixels;
+    uint16_t width;
+    uint16_t height;
+    uint8_t io_failed;
+    uint8_t output_failed;
+} camera_jpeg_context_t;
 
 static camera_ui_state_t camera_ui_state = CAMERA_UI_MAIN;
 
@@ -452,10 +479,190 @@ static void camera_ui_build_main(void)
                         LV_EVENT_CLICKED, NULL);
 }
 
+static size_t camera_ui_jpeg_input(JDEC *decoder, uint8_t *buffer,
+                                   size_t length)
+{
+    camera_jpeg_context_t *context = decoder->device;
+    size_t read_length;
+
+    if (context == NULL || context->file == NULL)
+        return 0U;
+    if (buffer == NULL)
+    {
+        if (fseek(context->file, (long)length, SEEK_CUR) != 0)
+        {
+            context->io_failed = 1U;
+            return 0U;
+        }
+        return length;
+    }
+
+    read_length = fread(buffer, 1U, length, context->file);
+    if (read_length < length && ferror(context->file))
+        context->io_failed = 1U;
+    return read_length;
+}
+
+static int camera_ui_jpeg_output(JDEC *decoder, void *bitmap,
+                                 JRECT *rectangle)
+{
+    camera_jpeg_context_t *context = decoder->device;
+    const uint8_t *source = bitmap;
+    uint16_t block_width;
+    uint16_t x;
+    uint16_t y;
+
+    if (context == NULL || source == NULL || rectangle == NULL ||
+        rectangle->left > rectangle->right ||
+        rectangle->top > rectangle->bottom ||
+        rectangle->right >= context->width ||
+        rectangle->bottom >= context->height)
+    {
+        if (context != NULL)
+            context->output_failed = 1U;
+        return 0;
+    }
+
+    block_width = rectangle->right - rectangle->left + 1U;
+    for (y = rectangle->top; y <= rectangle->bottom; y++)
+    {
+        lv_color_t *destination = context->pixels +
+                                  (uint32_t)y * context->width +
+                                  rectangle->left;
+
+        for (x = 0U; x < block_width; x++)
+        {
+            destination[x] = lv_color_make(source[0], source[1], source[2]);
+            source += 3;
+        }
+    }
+    return 1;
+}
+
+static camera_decode_result_t camera_ui_jpeg_error(const char *stage,
+                                                    JRESULT result,
+                                                    uint8_t io_failed)
+{
+    if (io_failed || result == JDR_INP)
+    {
+        rt_kprintf("camera: JPEG %s input error/truncated, result=%d\n",
+                   stage, result);
+        return CAMERA_DECODE_INPUT_ERROR;
+    }
+    if (result == JDR_MEM1 || result == JDR_MEM2)
+    {
+        rt_kprintf("camera: JPEG %s memory insufficient, result=%d, "
+                   "workspace=%u\n", stage, result,
+                   (unsigned int)CAMERA_JPEG_WORK_SIZE);
+        return CAMERA_DECODE_MEMORY_ERROR;
+    }
+    if (result == JDR_FMT1 || result == JDR_FMT2 || result == JDR_FMT3)
+    {
+        rt_kprintf("camera: JPEG %s format unsupported/corrupt, result=%d\n",
+                   stage, result);
+        return CAMERA_DECODE_FORMAT_ERROR;
+    }
+
+    rt_kprintf("camera: JPEG %s failed, result=%d\n", stage, result);
+    return CAMERA_DECODE_OUTPUT_ERROR;
+}
+
+static camera_decode_result_t camera_ui_decode_preview(void)
+{
+    camera_jpeg_context_t context;
+    JDEC decoder;
+    JRESULT result;
+
+    lv_memset_00(&context, sizeof(context));
+    context.file = fopen(CAMERA_PHOTO_LVGL_PATH, "rb");
+    context.pixels = camera_preview_pixels;
+    if (context.file == NULL)
+    {
+        rt_kprintf("camera: cannot open preview %s, errno=%d\n",
+                   CAMERA_PHOTO_LVGL_PATH, rt_get_errno());
+        return CAMERA_DECODE_FILE_ERROR;
+    }
+
+    result = jd_prepare(&decoder, camera_ui_jpeg_input, camera_jpeg_work,
+                        sizeof(camera_jpeg_work), &context);
+    if (result != JDR_OK)
+    {
+        camera_decode_result_t error = camera_ui_jpeg_error(
+            "prepare", result, context.io_failed);
+
+        fclose(context.file);
+        return error;
+    }
+
+    if (decoder.width == 0U || decoder.height == 0U)
+    {
+        rt_kprintf("camera: JPEG format error: empty image %ux%u\n",
+                   (unsigned int)decoder.width,
+                   (unsigned int)decoder.height);
+        fclose(context.file);
+        return CAMERA_DECODE_FORMAT_ERROR;
+    }
+    if (decoder.width > CAMERA_PHOTO_MAX_EDGE ||
+        decoder.height > CAMERA_PHOTO_MAX_EDGE)
+    {
+        rt_kprintf("camera: preview size limit exceeded: %ux%u, max edge=%u\n",
+                   (unsigned int)decoder.width,
+                   (unsigned int)decoder.height,
+                   (unsigned int)CAMERA_PHOTO_MAX_EDGE);
+        fclose(context.file);
+        return CAMERA_DECODE_SIZE_ERROR;
+    }
+
+    context.width = decoder.width;
+    context.height = decoder.height;
+    result = jd_decomp(&decoder, camera_ui_jpeg_output, 0U);
+    fclose(context.file);
+    if (result != JDR_OK || context.output_failed)
+    {
+        if (context.output_failed)
+        {
+            rt_kprintf("camera: JPEG output bounds error, result=%d\n",
+                       result);
+            return CAMERA_DECODE_OUTPUT_ERROR;
+        }
+        return camera_ui_jpeg_error("decode", result, context.io_failed);
+    }
+
+    lv_memset_00(&camera_preview_dsc, sizeof(camera_preview_dsc));
+    camera_preview_dsc.header.always_zero = 0U;
+    camera_preview_dsc.header.w = decoder.width;
+    camera_preview_dsc.header.h = decoder.height;
+    camera_preview_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+    camera_preview_dsc.data_size =
+        (uint32_t)decoder.width * decoder.height * sizeof(lv_color_t);
+    camera_preview_dsc.data = (const uint8_t *)camera_preview_pixels;
+    rt_kprintf("camera: preview decoded to RGB565, %ux%u\n",
+               (unsigned int)decoder.width, (unsigned int)decoder.height);
+    return CAMERA_DECODE_OK;
+}
+
+static const char *camera_ui_decode_status(camera_decode_result_t result)
+{
+    switch (result)
+    {
+    case CAMERA_DECODE_FILE_ERROR:
+        return "照片文件读取失败";
+    case CAMERA_DECODE_FORMAT_ERROR:
+        return "照片格式不支持";
+    case CAMERA_DECODE_MEMORY_ERROR:
+        return "照片解码内存不足";
+    case CAMERA_DECODE_SIZE_ERROR:
+        return "照片尺寸超过160px";
+    case CAMERA_DECODE_INPUT_ERROR:
+        return "照片数据损坏";
+    case CAMERA_DECODE_OUTPUT_ERROR:
+    default:
+        return "照片解码失败";
+    }
+}
+
 static void camera_ui_build_preview(void)
 {
-    lv_img_header_t header;
-    lv_img_decoder_dsc_t decoder;
     lv_img_dsc_t *decoded;
     lv_obj_t *image;
     lv_obj_t *touch_layer;
@@ -466,72 +673,35 @@ static void camera_ui_build_preview(void)
     uint32_t fit_x;
     uint32_t fit_y;
     uint32_t fit_zoom;
-    uint16_t row;
-    uint8_t decode_ok = 1U;
+    camera_decode_result_t decode_result;
 
     if (camera_panel == NULL)
         return;
-    lv_img_cache_invalidate_src(CAMERA_PHOTO_LVGL_PATH);
-    if (!camera_photo_has_image() ||
-        lv_img_decoder_get_info(CAMERA_PHOTO_LVGL_PATH, &header) != LV_RES_OK ||
-        header.w == 0U || header.h == 0U ||
-        header.w > CAMERA_PHOTO_MAX_EDGE || header.h > CAMERA_PHOTO_MAX_EDGE)
+    lv_img_cache_invalidate_src(&camera_preview_dsc);
+    decode_result = camera_ui_decode_preview();
+    if (decode_result != CAMERA_DECODE_OK)
     {
         camera_ui_build_main();
-        camera_ui_show_status("照片解码失败");
+        camera_ui_show_status(camera_ui_decode_status(decode_result));
         return;
     }
 
     lv_obj_clean(camera_panel);
     camera_ui_release_preview();
     camera_status_label = NULL;
-    /* File JPEGs are line-decoded; keep an RGB565 copy so zoom and pan work. */
     decoded = &camera_preview_dsc;
-    lv_memset_00(decoded, sizeof(*decoded));
-    decoded->header.always_zero = 0U;
-    decoded->header.w = header.w;
-    decoded->header.h = header.h;
-    decoded->header.cf = LV_IMG_CF_TRUE_COLOR;
-    decoded->data_size = (uint32_t)header.w * header.h * sizeof(lv_color_t);
-    decoded->data = camera_preview_pixels;
-    if (lv_img_decoder_open(&decoder, CAMERA_PHOTO_LVGL_PATH,
-                            lv_color_white(), 0) != LV_RES_OK)
-    {
-        camera_ui_build_main();
-        camera_ui_show_status("照片内存不足");
-        return;
-    }
-    for (row = 0U; row < header.h; row++)
-    {
-        uint8_t *line = (uint8_t *)decoded->data +
-                        (uint32_t)row * header.w * sizeof(lv_color_t);
-
-        if (lv_img_decoder_read_line(&decoder, 0, row, header.w, line) !=
-            LV_RES_OK)
-        {
-            decode_ok = 0U;
-            break;
-        }
-    }
-    lv_img_decoder_close(&decoder);
-    if (!decode_ok)
-    {
-        camera_ui_build_main();
-        camera_ui_show_status("照片解码失败");
-        return;
-    }
-
     camera_ui_state = CAMERA_UI_PREVIEW;
     camera_preview_buffer = decoded;
     image = lv_img_create(camera_panel);
     lv_img_set_src(image, camera_preview_buffer);
     lv_obj_set_size(image, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_img_set_pivot(image, header.w / 2, header.h / 2);
+    lv_img_set_pivot(image, decoded->header.w / 2, decoded->header.h / 2);
+    lv_img_set_antialias(image, true);
     lv_obj_clear_flag(image, LV_OBJ_FLAG_SCROLLABLE);
     camera_preview_image = image;
 
-    fit_x = CAMERA_PREVIEW_FIT_WIDTH * LV_IMG_ZOOM_NONE / header.w;
-    fit_y = CAMERA_PREVIEW_FIT_HEIGHT * LV_IMG_ZOOM_NONE / header.h;
+    fit_x = CAMERA_PREVIEW_FIT_WIDTH * LV_IMG_ZOOM_NONE / decoded->header.w;
+    fit_y = CAMERA_PREVIEW_FIT_HEIGHT * LV_IMG_ZOOM_NONE / decoded->header.h;
     fit_zoom = fit_x < fit_y ? fit_x : fit_y;
     if (fit_zoom < LV_IMG_ZOOM_NONE)
         fit_zoom = LV_IMG_ZOOM_NONE;
