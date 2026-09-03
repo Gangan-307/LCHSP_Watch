@@ -4,10 +4,25 @@ config BF0_HCPU
     default y
 
 config CUSTOM_MEM_MAP
-    bool 
-	select custom_mem_map
-	default y if !SOC_SIMULATOR
+    bool
+    select custom_mem_map
+    default y if !SOC_SIMULATOR
 
 config ENABLE_DFU
     bool "enable dfu and add dfu sub-project"
-	default n
+    default n
+
+config HSP_USING_OTA
+    bool "enable HSP PAN OTA client"
+    depends on BF0_HCPU
+    default n
+    help
+        Enable version queries and handoff to the dedicated DFU PAN loader.
+
+config HSP_OTA_SERVER_BASE_URL
+    string "HSP OTA server base URL"
+    depends on HSP_USING_OTA
+    default ""
+    help
+        HTTPS base URL of the project OTA service. Keep empty until a trusted
+        server containing firmware for this exact board is available.

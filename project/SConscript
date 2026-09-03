@@ -9,11 +9,17 @@ list = os.listdir(cwd)
 Import('SIFLI_SDK')
 objs.extend(SConscript(os.path.join(SIFLI_SDK, 'SConscript'), variant_dir="sifli_sdk", duplicate=0))
 
+# The main firmware only needs the PAN manifest client. The complete
+# LVGL-based downloader is built separately by dfu_pan_loader.
+if GetDepend('HSP_USING_OTA'):
+    objs.extend(SConscript(cwd + '/ota_client/SConscript',
+                           variant_dir='ota_client', duplicate=0))
+
 # Add LCPU Patch
 objs.extend(SConscript(os.path.join(SIFLI_SDK, 'example/rom_bin/lcpu_general_ble_img/SConscript'), variant_dir="lcpu_patch", duplicate=0))
 
 # Add application source code
-# lang_pack.h is generated below src/resource/strings.  Create the parent
+# lang_pack.h is generated below src/resource/strings. Create the parent
 # variant directory before evaluating src/SConscript, as required by the SDK
 # language resource builder.
 Execute(Mkdir('src'))

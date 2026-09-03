@@ -1,0 +1,8 @@
+# Application-specific configuration for the SDK DFU PAN loader.
+config BF0_HCPU
+    bool
+    default y
+
+config CUSTOM_MEM_MAP
+    bool
+    default y

@@ -18,6 +18,10 @@
 #include "battery_ble.h"
 #include "find_phone_ble.h"
 
+#ifdef HSP_USING_OTA
+#include "bt_pan_ota.h"
+#endif
+
 #ifdef OTA_55X
 #include "dfu_service.h"
 #endif
@@ -80,6 +84,25 @@ uint8_t bt_pan_get_retry_time(void)
 uint8_t bt_pan_is_connected(void)
 {
     return (g_bt_enabled && g_bt_app_env.bt_connected) ? 1U : 0U;
+}
+
+uint8_t bt_pan_network_is_connected(void)
+{
+    return (g_bt_enabled && g_bt_app_env.bt_connected &&
+            g_bt_app_env.pan_connected) ? 1U : 0U;
+}
+
+uint8_t bt_pan_prepare_ota_link(void)
+{
+#ifdef HSP_USING_OTA
+    if (!bt_pan_network_is_connected())
+        return 0U;
+    g_bt_app_env_ota.bt_connected = TRUE;
+    g_bt_app_env_ota.bd_addr = g_bt_app_env.bd_addr;
+    return 1U;
+#else
+    return 0U;
+#endif
 }
 
 uint8_t bt_pan_is_enabled(void)

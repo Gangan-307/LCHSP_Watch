@@ -27,6 +27,9 @@ void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid
 /* Notify the Android companion after the local daily activity total changes. */
 void find_phone_ble_publish_activity(void);
 
+/* Publish the watch OTA state on the existing STATE notification channel. */
+void find_phone_ble_publish_ota_status(uint8_t state, uint8_t progress_percent);
+
 /* Keep notification deletion coherent with the Android-side reconnect cache. */
 void find_phone_ble_delete_notification(uint16_t id);
 void find_phone_ble_clear_notifications(void);

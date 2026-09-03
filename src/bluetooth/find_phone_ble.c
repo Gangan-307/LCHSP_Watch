@@ -24,6 +24,7 @@
 #include "services/camera_photo_service.h"
 #include "services/phone_notifications.h"
 #include "services/phone_sync.h"
+#include "services/ota_service.h"
 #include "find_phone_ble.h"
 
 #define HSP_UUID_LEN                         (16U)
@@ -53,10 +54,13 @@
 #define HSP_PHONE_NOTIFICATION_CLEAR         (0x03U)
 #define HSP_PHONE_NOTIFICATION_DELETE        (0x04U)
 #define HSP_PHONE_PHOTO_REQUEST               (0x05U)
+#define HSP_PHONE_OTA_STATUS                  (0x06U)
 
 /* Commands written by Android to the watch CONTROL characteristic. */
 #define HSP_WATCH_FIND_START                 (0x11U)
 #define HSP_WATCH_FIND_STOP                  (0x12U)
+#define HSP_WATCH_OTA_CHECK                  (0x13U)
+#define HSP_WATCH_OTA_INSTALL                (0x14U)
 
 /* Packets written by Android to the SYNC characteristic. */
 #define HSP_SYNC_TIME                         (0x21U)
@@ -169,6 +173,9 @@ typedef struct
     uint8_t device_status_subscribed;
     uint8_t conn_idx;
     uint8_t sequence;
+    uint8_t ota_state;
+    uint8_t ota_progress;
+    uint8_t ota_status_valid;
     uint8_t battery_percent;
     uint8_t battery_valid;
     uint8_t charging;
@@ -242,6 +249,7 @@ BLE_GATT_SERVICE_DEFINE_128(hsp_find_phone_att_db)
 SIBLES_ADVERTISING_CONTEXT_DECLAR(g_hsp_find_phone_advertising);
 
 static uint8_t hsp_send_phone_command(uint8_t command);
+static uint8_t hsp_send_ota_status(void);
 static void hsp_send_device_status(void);
 static void hsp_flush_notification_commands(void);
 
@@ -774,6 +782,18 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
             vibrator_off();
             LOG_I("HSP Find Watch stop command received");
             break;
+        case HSP_WATCH_OTA_CHECK:
+            if (ota_service_check() != RT_EOK)
+                LOG_W("HSP OTA check command rejected");
+            else
+                LOG_I("HSP OTA check command received");
+            break;
+        case HSP_WATCH_OTA_INSTALL:
+            if (ota_service_install() != RT_EOK)
+                LOG_W("HSP OTA install command rejected");
+            else
+                LOG_I("HSP OTA install command received");
+            break;
         default:
             LOG_W("HSP unknown control command: %u", parameter->value[0]);
             return 1U;
@@ -797,7 +817,10 @@ static uint8_t hsp_gatts_set_callback(uint8_t conn_idx, sibles_set_cbk_t *parame
         if (g_hsp_find_phone.state_subscribed && g_hsp_find_phone.requested)
             hsp_schedule_pending_notify();
         if (g_hsp_find_phone.state_subscribed)
+        {
             hsp_flush_notification_commands();
+            hsp_send_ota_status();
+        }
         break;
 
     case HSP_ATT_DEVICE_STATUS_CCCD:
@@ -850,6 +873,33 @@ static uint8_t hsp_send_phone_command(uint8_t command)
         return 0U;
     }
     return 1U;
+}
+
+static uint8_t hsp_send_ota_status(void)
+{
+    sibles_value_t value;
+    int result;
+
+    if (!g_hsp_find_phone.ota_status_valid)
+        return 0U;
+    g_hsp_find_phone.state_packet[0] = HSP_PHONE_OTA_STATUS;
+    g_hsp_find_phone.state_packet[1] = ++g_hsp_find_phone.sequence;
+    g_hsp_find_phone.state_packet[2] = g_hsp_find_phone.ota_state;
+    g_hsp_find_phone.state_packet[3] = g_hsp_find_phone.ota_progress;
+    g_hsp_find_phone.state_packet_len = 4U;
+
+    if (!g_hsp_find_phone.service_ready ||
+        !g_hsp_find_phone.state_subscribed ||
+        g_hsp_find_phone.conn_idx == HSP_INVALID_CONN_IDX)
+        return 0U;
+
+    memset(&value, 0, sizeof(value));
+    value.hdl = g_hsp_find_phone.service_handle;
+    value.idx = HSP_ATT_STATE_VALUE;
+    value.len = g_hsp_find_phone.state_packet_len;
+    value.value = g_hsp_find_phone.state_packet;
+    result = sibles_write_value(g_hsp_find_phone.conn_idx, &value);
+    return result == g_hsp_find_phone.state_packet_len ? 1U : 0U;
 }
 
 static uint8_t hsp_send_notification_command(uint8_t command, uint16_t id)
@@ -1086,6 +1136,15 @@ void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid
 void find_phone_ble_publish_activity(void)
 {
     hsp_send_device_status();
+}
+
+void find_phone_ble_publish_ota_status(uint8_t state, uint8_t progress_percent)
+{
+    g_hsp_find_phone.ota_state = state;
+    g_hsp_find_phone.ota_progress = progress_percent > 100U ? 100U :
+                                                              progress_percent;
+    g_hsp_find_phone.ota_status_valid = 1U;
+    hsp_send_ota_status();
 }
 
 void find_phone_ble_delete_notification(uint16_t id)

@@ -52,7 +52,7 @@ UI、板载硬件服务、TF 卡应用、经典蓝牙音频控制和 Android BLE
 | 遥控拍照 | 依赖手机 HID | 支持立即、3 秒和 5 秒倒计时快门 |
 | 音乐封面、照片预览 | 已实现 | BLE JPEG 接收、固定工作区 RGB565 解码、缩放和照片拖动预览 |
 | PAN/NTP | 部分实现 | 底层连接和 NTP 已接入，设置页 PAN 偏好尚未完整驱动服务 |
-| PAN OTA | 独立示例 | 位于 `pan_ota/`，尚未合并为主固件升级流程 |
+| 主固件 PAN OTA | 已接入 | 设置页/App 检查更新，独立 DFU Loader 下载并写入主固件，默认不配置服务端 |
 
 ## 快速开始
 
@@ -81,13 +81,17 @@ scons --board=sf32lb52-lchspi-ulp_hcpu -j8
 
 ```text
 project/build_sf32lb52-lchspi-ulp_hcpu/main.bin
+project/build_sf32lb52-lchspi-ulp_hcpu/dfu/dfu.bin
+project/build_sf32lb52-lchspi-ulp_hcpu/bootloader/bootloader.bin
+project/build_sf32lb52-lchspi-ulp_hcpu/ftab/ftab.bin
 project/build_sf32lb52-lchspi-ulp_hcpu/main.elf
 project/build_sf32lb52-lchspi-ulp_hcpu/download.bat
 project/build_sf32lb52-lchspi-ulp_hcpu/uart_download.bat
 ```
 
-`main.bin` 只是 HCPU 应用镜像。首次烧录或分区发生变化时，应使用 SDK 生成的完整
-下载脚本，确保 bootloader、LCPU、flash table 和应用镜像匹配。
+`main.bin` 只是 HCPU 应用镜像。OTA 分区表与旧版本不同，首次部署 `0.4.0` 时必须
+使用 SDK 生成的完整下载脚本，一次烧录 `ftab + bootloader + dfu + main`。只烧
+`main.bin` 无法建立 OTA Loader，且主固件地址也会与旧分区表不一致。
 
 ### 3. 烧录
 
@@ -113,6 +117,27 @@ uart_download.bat
 固定偏移双卷布局。已挂载时后台每秒探测一次 TF 卡，连续两次失败后按拔卡处理；
 无卡时使用低优先级线程每 30 秒尝试一次自动重挂载，进入 TF 相关页面或点击刷新会
 立即提交异步挂载请求，避免 SDK 最长数秒的无卡初始化阻塞 LVGL。
+
+### 5. 配置主固件 OTA
+
+OTA 服务地址默认留空，避免误刷 SiFli 示例服务器上的固件。部署自己的兼容服务后，
+在 `project/proj.conf` 中设置可信 HTTPS 地址：
+
+```text
+CONFIG_HSP_OTA_SERVER_BASE_URL="https://ota.example.com"
+```
+
+服务端沿用 `pan_ota` 的注册和版本查询接口。升级清单只允许一个有效镜像，并且必须满足：
+
+- `file_name` 为 `main.bin`。
+- `addr` 为 `0x12218000`。
+- `file_size` 大于 0 且不超过 `region_size`。
+- `region_size` 不超过 `0x00788000`。
+- `url` 使用 HTTPS，`crc32` 与发布的 `main.bin` 一致。
+
+手机 App 不接收或转发固件文件，只负责通过 BLE 发出检查/安装命令、显示状态并打开
+Android 网络共享设置。检查和下载均由手表通过手机 PAN 网络完成。升级前需保持蓝牙
+网络共享开启，停止 TF 音乐和录音，并保证电量不低于 40% 或正在充电。
 
 ## 主要交互
 
@@ -326,10 +351,13 @@ src/ui/settings/         系统设置、电池管理和系统信息
 src/ui/system/           关机和重启界面
 src/ui/tomato/           番茄钟
 src/ui/water/            喝水提醒
+src/services/ota_service.c  主固件 OTA 状态机、条件和清单校验
 src/ui/generated/        SquareLine 代码及现有手工扩展
 src/resource/strings/    中英文资源 JSON
 image/                   LVGL 图片和实机照片资源
 project/                 主固件 SCons 工程
+project/dfu_pan_loader/  独立 PAN 下载与刷写 Loader
+project/ota_client/      主固件使用的 SDK PAN 客户端包装层
 simulator/               Windows/MSVC LVGL 模拟器工程
 mp3_sd_player/           SDK TF 音乐移植参考工程
 pan_ota/                 SDK PAN OTA 独立参考工程
@@ -351,8 +379,8 @@ SiFli 本地音乐示例的移植参考，用于验证 SPI MSD、ElmFat、Audio 
 ### `pan_ota/`
 
 SiFli PAN OTA 示例，包含手机蓝牙网络共享、设备注册、版本查询和 DFU PAN 下载流程。
-它有独立的 `project/`、配置和 README，不是主固件的一部分。主固件虽然启用了普通
-DFU 构建，但没有启用 `CONFIG_USING_DFU_PAN`，也没有调用 `AddDFU_PAN()`。
+它仍是独立参考工程，不参与主固件构建。主项目已提取版本查询客户端，并通过
+`project/dfu_pan_loader/` 单独构建 LVGL v9 Loader，避免与主固件 LVGL v8 混编。
 
 ## 常见问题
 
@@ -393,6 +421,7 @@ PAN 偏好目前不会完整建立连接，可通过 FinSH 执行 `pan_cmd conn_
 - TF 音乐只扫描 `/music` 第一层，最多 64 首，不读取专辑封面或 ID3 元数据。
 - TF 热插拔使用 SPI 扇区健康探测，没有独立卡检测引脚，拔卡确认最长约 2 秒。
 - 蓝牙设置中的 PAN 开关只保存页面内偏好，底层 PAN/NTP 尚未完整受该开关控制。
+- OTA 服务地址默认留空；配置并部署兼容的可信服务端前只能验证入口和错误提示。
 - 连接新手机、移除单个配对、清除全部配对、通话和部分蓝牙诊断入口仍为预留。
 - 位置页是坐标信息和静态示意图，不包含地图瓦片、路线规划或导航。
 - 活动累计和 RGB 参数仍主要保存在 RAM，重启后不会完整恢复。
@@ -421,8 +450,7 @@ LVGL 启动和并发问题可参考：
 
 | 固件版本 | 日期 | 主要修改 |
 | --- | --- | --- |
-| 开发中 | 2026-09-02 | 第二阶段 TF 稳定化：增加热插拔监控与自动重挂载、本地音乐/录音音频互斥、异常拔卡资源释放和录音删除。 |
-| `0.4.0` | 2026-09-02 | 增加 TF 文件管理、TF WAV 录音、TF/蓝牙双模式音乐和内部 NOR 文件系统初始化；音乐封面与照片预览改用固定 4 KB 工作区解码至 RGB565，支持封面缩放及最长边 160 px 的照片缩放、拖动预览；加入独立 PAN OTA 示例。 |
+| `0.4.0` | 2026-09-03 | 增加 TF 文件管理、TF WAV 录音、TF/蓝牙双模式音乐和 TF 稳定化；音乐封面与照片预览改用固定 4 KB 工作区解码至 RGB565；正式接入设置页、Android App 和独立 DFU PAN Loader 的主固件 OTA 流程。 |
 | `0.3.0` | 2026-08-21 | 新增闹钟、计算器、喝水提醒、番茄钟、日历、遥控拍照、图片预览、指南针和系统设置。 |
 | `0.2.0` | 2026-08-14 | 完善蜂窝菜单、图片表盘、导航、实体按键、电源、通知、音乐、活动、充电和震动反馈。 |
 | `0.1.0` | 2026-08-07 | 建立手表固件基础功能，接入 BLE 状态同步和基础 LVGL 页面。 |

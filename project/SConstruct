@@ -21,6 +21,8 @@ AddLCPU(SIFLI_SDK,rtconfig.CHIP,"../../src/lcpu_img.c")
 
 # Set default compile options
 SifliEnv()
+if GetDepend('HSP_USING_OTA') and os.getenv('RTT_CC') == 'gcc':
+    rtconfig.CFLAGS += ' -Wno-error=incompatible-pointer-types'
 
 TARGET = rtconfig.OUTPUT_DIR + rtconfig.TARGET_NAME + '.' + rtconfig.TARGET_EXT
 # Prepare building environment
@@ -30,7 +32,9 @@ env = GetCurrentEnv()
 # Build application.
 DoBuilding(TARGET, objs)
 
-if GetDepend('ENABLE_DFU'):
+if GetDepend('HSP_USING_OTA'):
+    AddChildProj('dfu', os.path.join(Dir('#').abspath, 'dfu_pan_loader'), False)
+elif GetDepend('ENABLE_DFU'):
     AddDFU(SIFLI_SDK)
 
 # Add flash table buld.
