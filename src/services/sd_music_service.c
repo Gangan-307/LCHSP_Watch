@@ -7,12 +7,15 @@
 #include "audio_server.h"
 #include "dfs_file.h"
 #include "dfs_posix.h"
+#include "services/local_audio_arbiter.h"
 #include "services/tf_card.h"
 
 #define SD_MUSIC_MAX_TRACKS       64U
 #define SD_MUSIC_PATH_LEN         192U
 #define SD_MUSIC_QUEUE_DEPTH      12U
 #define SD_MUSIC_WORKER_STACK     4096U
+#define SD_MUSIC_MP3_SCAN_LIMIT   (64U * 1024U)
+#define SD_MUSIC_MP3_READ_SIZE    512U
 
 typedef struct
 {
@@ -39,6 +42,7 @@ typedef struct
 typedef struct
 {
     struct rt_mutex lock;
+    struct rt_mutex operation_lock;
     rt_mq_t command_queue;
     rt_thread_t worker;
     mp3ctrl_handle player;
@@ -46,6 +50,7 @@ typedef struct
     sd_music_track_t tracks[SD_MUSIC_MAX_TRACKS];
     uint32_t active_session;
     char music_directory[SD_MUSIC_PATH_LEN];
+    uint8_t owns_audio;
 } sd_music_context_t;
 
 static sd_music_context_t sd_music_ctx;
@@ -100,6 +105,111 @@ static uint8_t sd_music_is_audio_file(const char *name)
            sd_music_has_extension(name, ".wav");
 }
 
+static uint32_t sd_music_mp3_bitrate(uint32_t header)
+{
+    static const uint16_t mpeg1_layer3_kbps[16] =
+    {
+        0U, 32U, 40U, 48U, 56U, 64U, 80U, 96U,
+        112U, 128U, 160U, 192U, 224U, 256U, 320U, 0U
+    };
+    static const uint16_t mpeg2_layer3_kbps[16] =
+    {
+        0U, 8U, 16U, 24U, 32U, 40U, 48U, 56U,
+        64U, 80U, 96U, 112U, 128U, 144U, 160U, 0U
+    };
+    uint8_t version = (uint8_t)((header >> 19) & 0x03U);
+    uint8_t layer = (uint8_t)((header >> 17) & 0x03U);
+    uint8_t bitrate_index = (uint8_t)((header >> 12) & 0x0FU);
+    uint8_t sample_rate_index = (uint8_t)((header >> 10) & 0x03U);
+
+    if ((header & 0xFFE00000UL) != 0xFFE00000UL ||
+        version == 1U || layer != 1U || sample_rate_index == 3U ||
+        bitrate_index == 0U || bitrate_index == 15U)
+        return 0U;
+    return (version == 3U ? mpeg1_layer3_kbps[bitrate_index] :
+                            mpeg2_layer3_kbps[bitrate_index]) * 1000U;
+}
+
+static rt_err_t sd_music_probe_mp3(const char *path, uint32_t *duration)
+{
+    struct stat file_stat;
+    uint8_t buffer[SD_MUSIC_MP3_READ_SIZE];
+    uint32_t data_offset = 0U;
+    uint32_t header = 0U;
+    uint32_t scanned = 0U;
+    uint32_t bitrate = 0U;
+    int file;
+    int bytes_read;
+    uint16_t index;
+
+    *duration = 0U;
+    if (stat(path, &file_stat) != 0 || file_stat.st_size < 4)
+        return -RT_EINVAL;
+
+    file = open(path, O_RDONLY | O_BINARY);
+    if (file < 0)
+        return -RT_EIO;
+
+    bytes_read = read(file, buffer, 10U);
+    if (bytes_read >= 3 && memcmp(buffer, "ID3", 3U) == 0)
+    {
+        if (bytes_read != 10 || (buffer[6] & 0x80U) != 0U ||
+            (buffer[7] & 0x80U) != 0U || (buffer[8] & 0x80U) != 0U ||
+            (buffer[9] & 0x80U) != 0U)
+            goto invalid_file;
+        data_offset = 10U + ((uint32_t)buffer[6] << 21) +
+                      ((uint32_t)buffer[7] << 14) +
+                      ((uint32_t)buffer[8] << 7) + buffer[9];
+        if (data_offset > (uint32_t)file_stat.st_size - 4U)
+            goto invalid_file;
+    }
+
+    if (lseek(file, (off_t)data_offset, SEEK_SET) < 0)
+        goto read_error;
+
+    while (scanned < SD_MUSIC_MP3_SCAN_LIMIT &&
+           (bytes_read = read(file, buffer, sizeof(buffer))) > 0)
+    {
+        for (index = 0U; index < (uint16_t)bytes_read; index++)
+        {
+            header = (header << 8) | buffer[index];
+            if (scanned + index >= 3U)
+            {
+                bitrate = sd_music_mp3_bitrate(header);
+                if (bitrate != 0U)
+                {
+                    uint32_t audio_bytes = (uint32_t)file_stat.st_size -
+                                           data_offset;
+                    *duration = (uint32_t)(((uint64_t)audio_bytes * 8U) /
+                                           bitrate);
+                    close(file);
+                    rt_kprintf("sd_music: MP3 checked, size=%u, id3=%u, "
+                               "bitrate=%u, duration=%us\n",
+                               (unsigned int)file_stat.st_size,
+                               (unsigned int)data_offset,
+                               (unsigned int)bitrate,
+                               (unsigned int)*duration);
+                    return RT_EOK;
+                }
+            }
+        }
+        scanned += (uint32_t)bytes_read;
+    }
+    if (bytes_read < 0)
+        goto read_error;
+
+invalid_file:
+    close(file);
+    rt_kprintf("sd_music: invalid MP3 or MPEG frame not found: %s\n", path);
+    return -RT_EINVAL;
+
+read_error:
+    close(file);
+    rt_kprintf("sd_music: MP3 read failed, errno=%d: %s\n",
+               rt_get_errno(), path);
+    return -RT_EIO;
+}
+
 static rt_err_t sd_music_prepare_directory(void)
 {
     const char *root_path;
@@ -142,16 +252,21 @@ static rt_err_t sd_music_prepare_directory(void)
 static void sd_music_close_player(void)
 {
     mp3ctrl_handle player;
+    uint8_t owns_audio;
 
     rt_mutex_take(&sd_music_ctx.lock, RT_WAITING_FOREVER);
     player = sd_music_ctx.player;
     sd_music_ctx.player = RT_NULL;
+    owns_audio = sd_music_ctx.owns_audio;
+    sd_music_ctx.owns_audio = 0U;
     sd_music_ctx.active_session++;
     sd_music_ctx.snapshot.position_seconds = 0U;
     rt_mutex_release(&sd_music_ctx.lock);
 
     if (player != RT_NULL)
         (void)mp3ctrl_close(player);
+    if (owns_audio)
+        local_audio_arbiter_release(LOCAL_AUDIO_OWNER_SD_MUSIC);
 }
 
 static void sd_music_sort_tracks(uint16_t count)
@@ -297,7 +412,34 @@ static rt_err_t sd_music_play_current(void)
     rt_mutex_release(&sd_music_ctx.lock);
 
     sd_music_close_player();
-    (void)mp3ctrl_getinfo(sd_music_ctx.tracks[index].path, &info);
+    if (!tf_card_is_mounted())
+    {
+        sd_music_set_error("TF卡未插入");
+        return -RT_ERROR;
+    }
+    if (sd_music_has_extension(sd_music_ctx.tracks[index].name, ".mp3"))
+    {
+        if (sd_music_probe_mp3(sd_music_ctx.tracks[index].path,
+                               &info.total_time_in_seconds) != RT_EOK)
+        {
+            sd_music_set_error("MP3文件格式错误");
+            return -RT_EINVAL;
+        }
+    }
+    else if (mp3ctrl_getinfo(sd_music_ctx.tracks[index].path, &info) != 0)
+    {
+        sd_music_set_error("WAV文件格式错误");
+        return -RT_EINVAL;
+    }
+
+    if (local_audio_arbiter_acquire(LOCAL_AUDIO_OWNER_SD_MUSIC) != RT_EOK)
+    {
+        sd_music_set_error("录音正在使用音频");
+        return -RT_EBUSY;
+    }
+    rt_mutex_take(&sd_music_ctx.lock, RT_WAITING_FOREVER);
+    sd_music_ctx.owns_audio = 1U;
+    rt_mutex_release(&sd_music_ctx.lock);
 
     rt_mutex_take(&sd_music_ctx.lock, RT_WAITING_FOREVER);
     session = ++sd_music_ctx.active_session;
@@ -311,15 +453,21 @@ static rt_err_t sd_music_play_current(void)
     sd_music_set_status_locked("正在打开音乐");
     rt_mutex_release(&sd_music_ctx.lock);
 
+    rt_kprintf("sd_music: opening decoder: %s\n",
+               sd_music_ctx.tracks[index].path);
+
     player = mp3ctrl_open(AUDIO_TYPE_LOCAL_MUSIC,
                           sd_music_ctx.tracks[index].path,
                           sd_music_player_callback,
                           (void *)(uintptr_t)session);
     if (player == RT_NULL)
     {
+        sd_music_close_player();
         sd_music_set_error("音乐文件无法解码");
         return -RT_ERROR;
     }
+
+    rt_kprintf("sd_music: decoder opened\n");
 
     rt_mutex_take(&sd_music_ctx.lock, RT_WAITING_FOREVER);
     sd_music_ctx.player = player;
@@ -425,6 +573,7 @@ static void sd_music_worker_entry(void *parameter)
                        RT_WAITING_FOREVER) != RT_EOK)
             continue;
 
+        rt_mutex_take(&sd_music_ctx.operation_lock, RT_WAITING_FOREVER);
         switch (command.type)
         {
         case SD_MUSIC_COMMAND_REFRESH:
@@ -455,6 +604,38 @@ static void sd_music_worker_entry(void *parameter)
         default:
             break;
         }
+        rt_mutex_release(&sd_music_ctx.operation_lock);
+    }
+}
+
+static void sd_music_tf_card_event(tf_card_event_t event, void *user_data)
+{
+    sd_music_command_t refresh = {SD_MUSIC_COMMAND_REFRESH, 0U};
+
+    (void)user_data;
+    if (!sd_music_initialized)
+        return;
+
+    if (event == TF_CARD_EVENT_REMOVING)
+    {
+        rt_mutex_take(&sd_music_ctx.operation_lock, RT_WAITING_FOREVER);
+        sd_music_close_player();
+        rt_mutex_take(&sd_music_ctx.lock, RT_WAITING_FOREVER);
+        sd_music_ctx.snapshot.track_count = 0U;
+        sd_music_ctx.snapshot.track_index = 0U;
+        sd_music_ctx.snapshot.duration_seconds = 0U;
+        sd_music_ctx.snapshot.state = SD_MUSIC_STATE_ERROR;
+        strcpy(sd_music_ctx.snapshot.title, "TF卡音乐");
+        sd_music_set_status_locked("TF卡已拔出，播放已停止");
+        rt_mutex_release(&sd_music_ctx.lock);
+        rt_mutex_release(&sd_music_ctx.operation_lock);
+        rt_kprintf("sd_music: stopped for TF card removal\n");
+    }
+    else if (event == TF_CARD_EVENT_MOUNTED &&
+             sd_music_ctx.command_queue != RT_NULL)
+    {
+        (void)rt_mq_send(sd_music_ctx.command_queue, &refresh,
+                         sizeof(refresh));
     }
 }
 
@@ -467,6 +648,8 @@ void sd_music_service_init(void)
         return;
     rt_memset(&sd_music_ctx, 0, sizeof(sd_music_ctx));
     rt_mutex_init(&sd_music_ctx.lock, "sdmusic", RT_IPC_FLAG_FIFO);
+    rt_mutex_init(&sd_music_ctx.operation_lock, "sdmusic_op",
+                  RT_IPC_FLAG_PRIO);
     sd_music_ctx.snapshot.state = SD_MUSIC_STATE_IDLE;
     strcpy(sd_music_ctx.snapshot.title, "TF卡音乐");
     strcpy(sd_music_ctx.snapshot.status, "等待扫描TF卡");
@@ -493,6 +676,8 @@ void sd_music_service_init(void)
         sd_music_ctx.snapshot.generation++;
     }
     sd_music_initialized = 1U;
+    if (tf_card_register_listener(sd_music_tf_card_event, RT_NULL) != RT_EOK)
+        rt_kprintf("sd_music: cannot register TF card listener\n");
 }
 
 void sd_music_service_get_snapshot(sd_music_snapshot_t *snapshot)

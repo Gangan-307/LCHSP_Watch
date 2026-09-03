@@ -530,7 +530,7 @@ static void music_ui_refresh_bluetooth(void)
     }
     if (music_ui_snapshot.lyric[0] == '\0')
         lv_label_set_text(music_lyric, music_ui_snapshot.connected ?
-                          "由手机控制播放" : "请先连接手机蓝牙");
+                          "" : "请先连接手机蓝牙");
     if (displayed_progress_generation !=
         music_ui_snapshot.progress_generation)
     {
@@ -568,10 +568,15 @@ static void music_ui_refresh_tf_card(void)
     lv_label_set_text(music_title, music_ui_sd_snapshot.title);
     if (music_ui_sd_snapshot.track_count > 0U)
     {
-        rt_snprintf(status_text, sizeof(status_text), "%u / %u  %s",
-                    (unsigned int)(music_ui_sd_snapshot.track_index + 1U),
-                    (unsigned int)music_ui_sd_snapshot.track_count,
-                    music_ui_sd_snapshot.status);
+        if (music_ui_sd_snapshot.state == SD_MUSIC_STATE_PLAYING)
+            rt_snprintf(status_text, sizeof(status_text), "%u / %u",
+                        (unsigned int)(music_ui_sd_snapshot.track_index + 1U),
+                        (unsigned int)music_ui_sd_snapshot.track_count);
+        else
+            rt_snprintf(status_text, sizeof(status_text), "%u / %u  %s",
+                        (unsigned int)(music_ui_sd_snapshot.track_index + 1U),
+                        (unsigned int)music_ui_sd_snapshot.track_count,
+                        music_ui_sd_snapshot.status);
         lv_label_set_text(music_lyric, status_text);
     }
     else

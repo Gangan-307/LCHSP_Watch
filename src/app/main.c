@@ -28,6 +28,8 @@
 #include "services/compass_service.h"
 #include "services/watch_settings.h"
 #include "services/internal_storage.h"
+#include "services/local_audio_arbiter.h"
+#include "services/tf_card.h"
 #include "bluetooth/music_app.h"
 
 extern void bt_pan_app_init(void);
@@ -45,6 +47,8 @@ int main(void)
     power_manager_boot_gate();
     power_manager_startup_feedback();
     (void)internal_storage_init();
+    local_audio_arbiter_init();
+    tf_card_init();
     rtc_config();
     set_date_time();
     phone_sync_init();

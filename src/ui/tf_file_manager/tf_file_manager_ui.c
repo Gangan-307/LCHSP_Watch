@@ -42,6 +42,8 @@ static uint16_t tf_fm_entry_count;
 static char tf_fm_current_path[TF_FM_PATH_LEN] = TF_CARD_ROOT_PATH;
 static char tf_fm_preview_text[TF_FM_PREVIEW_BYTES + 1U];
 static uint8_t tf_fm_preview_open;
+static lv_timer_t *tf_fm_monitor_timer;
+static uint32_t tf_fm_tf_generation;
 
 static void tf_fm_build_list(void);
 
@@ -196,7 +198,7 @@ static void tf_fm_load_entries(void)
     if (dir == NULL)
         return;
 
-    while ((dirent = readdir(dir)) != NULL &&
+    while (tf_card_is_mounted() && (dirent = readdir(dir)) != NULL &&
            tf_fm_entry_count < TF_FM_MAX_ENTRIES)
     {
         tf_file_entry_t *entry;
@@ -215,6 +217,11 @@ static void tf_fm_load_entries(void)
     }
 
     closedir(dir);
+    if (!tf_card_is_mounted())
+    {
+        tf_fm_entry_count = 0U;
+        return;
+    }
     tf_fm_sort_entries();
 }
 
@@ -326,7 +333,10 @@ static void tf_fm_open_file(const tf_file_entry_t *entry)
     lv_label_set_text(tf_fm_title, "文件预览");
     lv_label_set_text(tf_fm_path_label, entry->path);
 
-    fd = open(entry->path, O_RDONLY, 0);
+    if (!tf_card_is_mounted())
+        fd = -1;
+    else
+        fd = open(entry->path, O_RDONLY, 0);
     if (fd < 0)
     {
         rt_snprintf(tf_fm_preview_text, sizeof(tf_fm_preview_text),
@@ -444,6 +454,11 @@ static void tf_fm_build_list(void)
     }
 
     tf_fm_load_entries();
+    if (!tf_card_is_mounted())
+    {
+        tf_fm_show_status("TF卡已拔出");
+        return;
+    }
     if (!tf_fm_is_root_path(tf_fm_current_path))
     {
         tf_fm_add_row(LV_SYMBOL_LEFT, "..", "上一级", y, tf_fm_parent_event,
@@ -468,6 +483,25 @@ static void tf_fm_build_list(void)
 
     if (tf_fm_entry_count == 0U && tf_fm_is_root_path(tf_fm_current_path))
         tf_fm_show_status("TF卡为空");
+}
+
+static void tf_fm_monitor_event(lv_timer_t *timer)
+{
+    uint32_t generation;
+
+    (void)timer;
+    if (ui_TfFileManager == NULL || lv_scr_act() != ui_TfFileManager)
+        return;
+    generation = tf_card_generation();
+    if (generation == tf_fm_tf_generation)
+        return;
+
+    tf_fm_tf_generation = generation;
+    strncpy(tf_fm_current_path, tf_card_root_path(),
+            sizeof(tf_fm_current_path) - 1U);
+    tf_fm_current_path[sizeof(tf_fm_current_path) - 1U] = '\0';
+    tf_fm_build_list();
+    tf_fm_tf_generation = tf_card_generation();
 }
 
 void ui_TfFileManager_screen_init(void)
@@ -498,10 +532,16 @@ void ui_TfFileManager_screen_init(void)
     lv_obj_set_style_pad_all(tf_fm_content, 0, LV_PART_MAIN);
     lv_obj_set_scroll_dir(tf_fm_content, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(tf_fm_content, LV_SCROLLBAR_MODE_AUTO);
+    if (tf_fm_monitor_timer == NULL)
+        tf_fm_monitor_timer = lv_timer_create(tf_fm_monitor_event, 500U,
+                                               RT_NULL);
 }
 
 void ui_TfFileManager_screen_destroy(void)
 {
+    if (tf_fm_monitor_timer != NULL)
+        lv_timer_del(tf_fm_monitor_timer);
+    tf_fm_monitor_timer = NULL;
     if (ui_TfFileManager != NULL)
         lv_obj_del(ui_TfFileManager);
 
@@ -521,6 +561,7 @@ void ui_TfFileManager_open_from_app_grid(void)
 
     strcpy(tf_fm_current_path, TF_CARD_ROOT_PATH);
     tf_fm_build_list();
+    tf_fm_tf_generation = tf_card_generation();
     lv_scr_load_anim(ui_TfFileManager, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0,
                      false);
 }

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "services/recording_service.h"
+#include "services/tf_card.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
 #include "ui/generated/ui_swipe_back.h"
@@ -28,13 +29,25 @@ static lv_obj_t *record_action_button;
 static lv_obj_t *record_action_indicator;
 static lv_obj_t *record_list;
 static lv_obj_t *record_play_labels[RECORD_UI_MAX_ENTRIES];
+static lv_obj_t *record_delete_buttons[RECORD_UI_MAX_ENTRIES];
+static lv_obj_t *record_delete_dialog;
 static recording_entry_t record_entries[RECORD_UI_MAX_ENTRIES];
 static uint16_t record_entry_count;
 static lv_timer_t *record_timer;
 static uint8_t record_refresh_after_save;
+static uint32_t record_tf_generation;
+static char record_delete_path[RECORDING_PATH_LEN];
 
 static void record_ui_refresh(void);
 static void record_ui_refresh_list(void);
+
+static void record_ui_close_delete_dialog(void)
+{
+    if (record_delete_dialog != NULL)
+        lv_obj_del(record_delete_dialog);
+    record_delete_dialog = NULL;
+    record_delete_path[0] = '\0';
+}
 
 static void record_ui_wait_release(void)
 {
@@ -129,6 +142,71 @@ static void record_ui_play_event(lv_event_t *event)
     record_ui_refresh();
 }
 
+static void record_ui_delete_cancel_event(lv_event_t *event)
+{
+    if (lv_event_get_code(event) == LV_EVENT_CLICKED)
+        record_ui_close_delete_dialog();
+}
+
+static void record_ui_delete_confirm_event(lv_event_t *event)
+{
+    rt_err_t result;
+
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED)
+        return;
+    result = recording_service_delete(record_delete_path);
+    record_ui_close_delete_dialog();
+    if (result == RT_EOK)
+        record_ui_refresh_list();
+    record_ui_refresh();
+}
+
+static void record_ui_delete_event(lv_event_t *event)
+{
+    recording_entry_t *entry = lv_event_get_user_data(event);
+    lv_obj_t *dialog_panel;
+    lv_obj_t *label;
+    lv_obj_t *button;
+
+    if (lv_event_get_code(event) != LV_EVENT_CLICKED || entry == NULL ||
+        record_delete_dialog != NULL)
+        return;
+
+    strncpy(record_delete_path, entry->path, sizeof(record_delete_path) - 1U);
+    record_delete_path[sizeof(record_delete_path) - 1U] = '\0';
+    record_delete_dialog = lv_obj_create(record_panel);
+    lv_obj_set_size(record_delete_dialog, LV_HOR_RES_MAX, LV_VER_RES_MAX);
+    lv_obj_center(record_delete_dialog);
+    record_ui_style_object(record_delete_dialog, RECORD_UI_BG, LV_OPA_70, 0);
+
+    dialog_panel = lv_obj_create(record_delete_dialog);
+    lv_obj_set_size(dialog_panel, 330, 176);
+    lv_obj_center(dialog_panel);
+    record_ui_style_object(dialog_panel, RECORD_UI_ROW, LV_OPA_COVER, 8);
+
+    label = record_ui_add_label(dialog_panel, "删除这条录音？",
+                                &hsp_font_cjk_22, RECORD_UI_TEXT);
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
+    label = record_ui_add_label(dialog_panel, entry->name,
+                                &lv_font_montserrat_16, RECORD_UI_MUTED);
+    lv_obj_set_width(label, 286);
+    lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 58);
+
+    button = record_ui_add_button(dialog_panel, 20, 108, 132, 48,
+                                  record_ui_delete_cancel_event);
+    label = record_ui_add_label(button, "取消", &hsp_font_cjk_22,
+                                RECORD_UI_TEXT);
+    lv_obj_center(label);
+    button = record_ui_add_button(dialog_panel, 178, 108, 132, 48,
+                                  record_ui_delete_confirm_event);
+    lv_obj_set_style_bg_color(button, lv_color_hex(RECORD_UI_RED),
+                              LV_PART_MAIN);
+    label = record_ui_add_label(button, "删除", &hsp_font_cjk_22,
+                                RECORD_UI_TEXT);
+    lv_obj_center(label);
+}
+
 static void record_ui_format_duration(uint32_t seconds, char *buffer,
                                       size_t size)
 {
@@ -149,6 +227,7 @@ static void record_ui_refresh_list(void)
         return;
     lv_obj_clean(record_list);
     rt_memset(record_play_labels, 0, sizeof(record_play_labels));
+    rt_memset(record_delete_buttons, 0, sizeof(record_delete_buttons));
     count = recording_service_list(record_entries, RECORD_UI_MAX_ENTRIES);
     record_entry_count = count > 0 ? (uint16_t)count : 0U;
     if (count < 0)
@@ -174,6 +253,8 @@ static void record_ui_refresh_list(void)
         lv_obj_t *name;
         lv_obj_t *duration;
         lv_obj_t *play;
+        lv_obj_t *delete_button;
+        lv_obj_t *delete_icon;
         char duration_text[20];
 
         lv_obj_set_pos(row, 20, y);
@@ -187,7 +268,7 @@ static void record_ui_refresh_list(void)
         name = record_ui_add_label(row, record_entries[index].name,
                                    &lv_font_montserrat_16, RECORD_UI_TEXT);
         lv_obj_set_pos(name, 16, 10);
-        lv_obj_set_width(name, 260);
+        lv_obj_set_width(name, 218);
         lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
         record_ui_format_duration(record_entries[index].duration_seconds,
                                   duration_text, sizeof(duration_text));
@@ -197,8 +278,22 @@ static void record_ui_refresh_list(void)
         lv_obj_set_pos(duration, 16, 37);
         play = record_ui_add_label(row, LV_SYMBOL_PLAY,
                                    &lv_font_montserrat_20, RECORD_UI_BLUE);
-        lv_obj_align(play, LV_ALIGN_RIGHT_MID, -18, 0);
+        lv_obj_align(play, LV_ALIGN_RIGHT_MID, -66, 0);
+        delete_button = lv_btn_create(row);
+        lv_obj_set_size(delete_button, 48, 48);
+        lv_obj_align(delete_button, LV_ALIGN_RIGHT_MID, -8, 0);
+        record_ui_style_object(delete_button, RECORD_UI_ROW, LV_OPA_COVER, 6);
+        lv_obj_set_style_bg_color(delete_button,
+                                  lv_color_hex(RECORD_UI_ROW_PRESSED),
+                                  LV_PART_MAIN | LV_STATE_PRESSED);
+        lv_obj_add_event_cb(delete_button, record_ui_delete_event,
+                            LV_EVENT_CLICKED, &record_entries[index]);
+        delete_icon = record_ui_add_label(delete_button, LV_SYMBOL_TRASH,
+                                          &lv_font_montserrat_20,
+                                          RECORD_UI_RED);
+        lv_obj_center(delete_icon);
         record_play_labels[index] = play;
+        record_delete_buttons[index] = delete_button;
         y += 72;
     }
 }
@@ -220,6 +315,14 @@ static const char *record_ui_status_text(const recording_snapshot_t *snapshot)
             return "播放完成";
         if (strcmp(snapshot->status, "Playback stopped") == 0)
             return "播放已停止";
+        if (strcmp(snapshot->status, "Recording deleted") == 0)
+            return "录音已删除";
+        if (strcmp(snapshot->status, "TF card removed") == 0)
+            return "TF卡已拔出";
+        if (strcmp(snapshot->status, "Music playback is active") == 0)
+            return "请先停止音乐播放";
+        if (strcmp(snapshot->status, "Stop recording or playback first") == 0)
+            return "请先停止录音或播放";
         if (strcmp(snapshot->status, "Ready") == 0)
             return "点击开始录音";
         return snapshot->status;
@@ -231,16 +334,29 @@ static void record_ui_refresh(void)
     recording_snapshot_t snapshot;
     char time_text[20];
     uint16_t index;
+    uint32_t tf_generation;
 
     if (record_panel == NULL)
         return;
+    tf_generation = tf_card_generation();
+    if (tf_generation != record_tf_generation)
+    {
+        record_tf_generation = tf_generation;
+        record_ui_close_delete_dialog();
+        if (tf_card_state() != TF_CARD_STATE_REMOVING)
+            record_ui_refresh_list();
+        record_tf_generation = tf_card_generation();
+    }
     recording_service_get_snapshot(&snapshot);
     rt_snprintf(time_text, sizeof(time_text), "%02lu:%02lu:%02lu",
                 (unsigned long)(snapshot.elapsed_seconds / 3600U),
                 (unsigned long)((snapshot.elapsed_seconds / 60U) % 60U),
                 (unsigned long)(snapshot.elapsed_seconds % 60U));
     lv_label_set_text(record_time_label, time_text);
-    lv_label_set_text(record_status_label, record_ui_status_text(&snapshot));
+    lv_label_set_text(record_status_label,
+                      !tf_card_is_mounted() &&
+                      snapshot.state == RECORDING_STATE_IDLE ?
+                      "TF卡未插入" : record_ui_status_text(&snapshot));
 
     if (snapshot.state == RECORDING_STATE_RECORDING)
     {
@@ -252,7 +368,7 @@ static void record_ui_refresh(void)
     {
         lv_obj_set_size(record_action_indicator, 46, 46);
         lv_obj_set_style_radius(record_action_indicator, 23, LV_PART_MAIN);
-        if (snapshot.state == RECORDING_STATE_IDLE)
+        if (snapshot.state == RECORDING_STATE_IDLE && tf_card_is_mounted())
             lv_obj_clear_state(record_action_button, LV_STATE_DISABLED);
         else
             lv_obj_add_state(record_action_button, LV_STATE_DISABLED);
@@ -271,6 +387,16 @@ static void record_ui_refresh(void)
             lv_obj_set_style_text_color(record_play_labels[index],
                 lv_color_hex(active ? RECORD_UI_GREEN : RECORD_UI_BLUE),
                 LV_PART_MAIN);
+        }
+        if (record_delete_buttons[index] != NULL)
+        {
+            if (snapshot.state == RECORDING_STATE_IDLE &&
+                tf_card_is_mounted())
+                lv_obj_clear_state(record_delete_buttons[index],
+                                   LV_STATE_DISABLED);
+            else
+                lv_obj_add_state(record_delete_buttons[index],
+                                 LV_STATE_DISABLED);
         }
     }
 
@@ -380,6 +506,7 @@ void ui_Record_screen_destroy(void)
     record_action_button = NULL;
     record_action_indicator = NULL;
     record_list = NULL;
+    record_delete_dialog = NULL;
     record_entry_count = 0U;
 }
 
@@ -389,6 +516,7 @@ void ui_Record_open_from_app_grid(void)
     if (ui_Record == NULL)
         ui_Record_init();
     record_ui_refresh_list();
+    record_tf_generation = tf_card_generation();
     record_ui_refresh();
     lv_scr_load_anim(ui_Record, LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0, false);
 }

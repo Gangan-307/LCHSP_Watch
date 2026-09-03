@@ -7,6 +7,7 @@
 #include "bf0_hal.h"
 #include "dfs_file.h"
 #include "dfs_posix.h"
+#include "services/local_audio_arbiter.h"
 #include "services/tf_card.h"
 
 #define RECORDING_SAMPLE_RATE       16000UL
@@ -17,12 +18,14 @@
 #define RECORDING_PLAY_CHUNK_SIZE   2048U
 #define RECORDING_PLAY_STACK_SIZE   4096U
 #define RECORDING_PLAY_SLICE_MS     10U
+#define RECORDING_REMOVE_WAIT_MS    3000U
 
 extern RTC_HandleTypeDef RTC_Handler;
 
 typedef struct
 {
     struct rt_mutex lock;
+    struct rt_mutex operation_lock;
     recording_state_t state;
     audio_client_t record_client;
     int record_fd;
@@ -36,11 +39,14 @@ typedef struct
     char active_path[RECORDING_PATH_LEN];
     char status[RECORDING_STATUS_LEN];
     rt_thread_t playback_thread;
+    uint32_t playback_card_generation;
 } recording_context_t;
 
 static recording_context_t recording_ctx;
 static uint8_t recording_initialized;
 static uint8_t recording_play_buffer[RECORDING_AUDIO_CACHE_SIZE];
+
+static void recording_tf_card_event(tf_card_event_t event, void *user_data);
 
 static void recording_put_u16(uint8_t *buffer, uint16_t value)
 {
@@ -185,8 +191,14 @@ static int recording_audio_callback(audio_server_callback_cmt_t cmd,
     {
         audio_server_coming_data_t *data =
             (audio_server_coming_data_t *)reserved;
-        int written = write(recording_ctx.record_fd, data->data,
-                            data->data_len);
+        int written;
+
+        if (!tf_card_is_mounted())
+        {
+            recording_ctx.record_write_failed = 1U;
+            return 0;
+        }
+        written = write(recording_ctx.record_fd, data->data, data->data_len);
 
         if (written > 0)
             recording_ctx.record_data_bytes += (uint32_t)written;
@@ -238,8 +250,15 @@ static void recording_playback_entry(void *parameter)
     uint32_t flush_ms = 0U;
     int fd = -1;
     uint8_t failed = 0U;
+    uint8_t card_removed = 0U;
 
     (void)parameter;
+    if (!tf_card_is_mounted() ||
+        tf_card_generation() != recording_ctx.playback_card_generation)
+    {
+        card_removed = 1U;
+        goto playback_done;
+    }
     fd = open(recording_ctx.active_path, O_RDONLY | O_BINARY, 0);
     if (fd < 0 ||
         recording_read_wav_header(fd, &params, &data_remaining) != RT_EOK)
@@ -260,8 +279,16 @@ static void recording_playback_entry(void *parameter)
     {
         uint32_t requested = data_remaining > RECORDING_PLAY_CHUNK_SIZE ?
                              RECORDING_PLAY_CHUNK_SIZE : data_remaining;
-        int bytes = read(fd, recording_play_buffer, requested);
+        int bytes;
         uint32_t offset = 0U;
+
+        if (!tf_card_is_mounted() ||
+            tf_card_generation() != recording_ctx.playback_card_generation)
+        {
+            card_removed = 1U;
+            break;
+        }
+        bytes = read(fd, recording_play_buffer, requested);
 
         if (bytes <= 0)
         {
@@ -289,7 +316,7 @@ static void recording_playback_entry(void *parameter)
             break;
     }
 
-    if (!recording_ctx.playback_stop_requested && !failed)
+    if (!recording_ctx.playback_stop_requested && !failed && !card_removed)
     {
         (void)audio_ioctl(client, AUDIO_IOCTL_FLUSH_TIME_MS, &flush_ms);
         while (flush_ms > 0U && !recording_ctx.playback_stop_requested)
@@ -306,12 +333,14 @@ playback_done:
     if (fd >= 0)
         close(fd);
 
+    local_audio_arbiter_release(LOCAL_AUDIO_OWNER_RECORDING_PLAYBACK);
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     recording_ctx.playback_thread = RT_NULL;
     recording_ctx.state = RECORDING_STATE_IDLE;
-    recording_set_status_locked(failed ? "Playback failed" :
+    recording_set_status_locked(card_removed ? "TF card removed" :
+        (failed ? "Playback failed" :
         (recording_ctx.playback_stop_requested ? "Playback stopped" :
-                                                 "Playback complete"));
+                                                 "Playback complete")));
     rt_mutex_release(&recording_ctx.lock);
 }
 
@@ -322,11 +351,15 @@ void recording_service_init(void)
 
     rt_memset(&recording_ctx, 0, sizeof(recording_ctx));
     rt_mutex_init(&recording_ctx.lock, "record", RT_IPC_FLAG_FIFO);
+    rt_mutex_init(&recording_ctx.operation_lock, "record_op",
+                  RT_IPC_FLAG_PRIO);
     recording_ctx.record_fd = -1;
     recording_ctx.state = RECORDING_STATE_IDLE;
     strcpy(recording_ctx.status, "Ready");
     recording_ctx.generation = 1U;
     recording_initialized = 1U;
+    if (tf_card_register_listener(recording_tf_card_event, RT_NULL) != RT_EOK)
+        rt_kprintf("recording: cannot register TF card listener\n");
 }
 
 void recording_service_get_snapshot(recording_snapshot_t *snapshot)
@@ -363,13 +396,17 @@ rt_err_t recording_service_start(void)
     char failure_status[RECORDING_STATUS_LEN] = "Start recording failed";
     audio_client_t client;
     int fd;
+    rt_err_t result = -RT_ERROR;
+    uint8_t audio_acquired = 0U;
 
     recording_service_init();
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     if (recording_ctx.state != RECORDING_STATE_IDLE)
     {
         rt_mutex_release(&recording_ctx.lock);
-        return -RT_EBUSY;
+        result = -RT_EBUSY;
+        goto start_done;
     }
     recording_ctx.state = RECORDING_STATE_STARTING;
     recording_set_status_locked("Preparing TF storage");
@@ -381,8 +418,19 @@ rt_err_t recording_service_start(void)
         recording_ctx.state = RECORDING_STATE_IDLE;
         recording_ctx.generation++;
         rt_mutex_release(&recording_ctx.lock);
-        return -RT_ERROR;
+        goto start_done;
     }
+
+    if (local_audio_arbiter_acquire(LOCAL_AUDIO_OWNER_RECORDING) != RT_EOK)
+    {
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        recording_ctx.state = RECORDING_STATE_IDLE;
+        recording_set_status_locked("Music playback is active");
+        rt_mutex_release(&recording_ctx.lock);
+        result = -RT_EBUSY;
+        goto start_done;
+    }
+    audio_acquired = 1U;
 
     recording_make_file_name(recording_ctx.active_name,
                              sizeof(recording_ctx.active_name),
@@ -436,14 +484,20 @@ rt_err_t recording_service_start(void)
     recording_ctx.state = RECORDING_STATE_RECORDING;
     recording_set_status_locked("Recording");
     rt_mutex_release(&recording_ctx.lock);
-    return RT_EOK;
+    result = RT_EOK;
+    goto start_done;
 
 start_failed:
+    if (audio_acquired)
+        local_audio_arbiter_release(LOCAL_AUDIO_OWNER_RECORDING);
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     recording_ctx.state = RECORDING_STATE_IDLE;
     recording_set_status_locked(failure_status);
     rt_mutex_release(&recording_ctx.lock);
-    return -RT_ERROR;
+
+start_done:
+    rt_mutex_release(&recording_ctx.operation_lock);
+    return result;
 }
 
 static rt_err_t recording_stop_capture(void)
@@ -472,22 +526,32 @@ static rt_err_t recording_stop_capture(void)
     data_bytes = recording_ctx.record_data_bytes;
     if (recording_ctx.record_write_failed)
         failed = 1U;
-    recording_make_wav_header(header, data_bytes);
-    if (lseek(fd, 0, SEEK_SET) < 0)
+    if (!tf_card_is_mounted() || fd < 0)
+    {
         failed = 1U;
-    else if (write(fd, header, sizeof(header)) != (int)sizeof(header))
-        failed = 1U;
-    if (fsync(fd) != 0)
-        failed = 1U;
-    if (close(fd) != 0)
-        failed = 1U;
+        if (fd >= 0)
+            (void)close(fd);
+    }
+    else
+    {
+        recording_make_wav_header(header, data_bytes);
+        if (lseek(fd, 0, SEEK_SET) < 0)
+            failed = 1U;
+        else if (write(fd, header, sizeof(header)) != (int)sizeof(header))
+            failed = 1U;
+        if (fsync(fd) != 0)
+            failed = 1U;
+        if (close(fd) != 0)
+            failed = 1U;
+    }
 
-    if (data_bytes == 0U)
+    if (data_bytes == 0U && tf_card_is_mounted())
     {
         unlink(recording_ctx.active_path);
         failed = 1U;
     }
 
+    local_audio_arbiter_release(LOCAL_AUDIO_OWNER_RECORDING);
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     recording_ctx.state = RECORDING_STATE_IDLE;
     recording_set_status_locked(failed ? "Recording save failed" :
@@ -499,8 +563,10 @@ static rt_err_t recording_stop_capture(void)
 rt_err_t recording_service_stop(void)
 {
     recording_state_t state;
+    rt_err_t result;
 
     recording_service_init();
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     state = recording_ctx.state;
     if (state == RECORDING_STATE_PLAYING)
@@ -512,31 +578,50 @@ rt_err_t recording_service_stop(void)
     rt_mutex_release(&recording_ctx.lock);
 
     if (state == RECORDING_STATE_RECORDING)
-        return recording_stop_capture();
-    if (state == RECORDING_STATE_PLAYING || state == RECORDING_STATE_STOPPING)
-        return RT_EOK;
-    return -RT_ERROR;
+        result = recording_stop_capture();
+    else if (state == RECORDING_STATE_PLAYING ||
+             state == RECORDING_STATE_STOPPING)
+        result = RT_EOK;
+    else
+        result = -RT_ERROR;
+    rt_mutex_release(&recording_ctx.operation_lock);
+    return result;
 }
 
 rt_err_t recording_service_play(const char *path)
 {
     const char *name;
+    rt_err_t result = -RT_ERROR;
 
     if (path == RT_NULL)
         return -RT_EINVAL;
     recording_service_init();
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
     if (recording_prepare_directory() != RT_EOK ||
         strncmp(path, recording_ctx.record_directory,
                 strlen(recording_ctx.record_directory)) != 0 ||
         path[strlen(recording_ctx.record_directory)] != '/')
-        return -RT_ERROR;
+        goto play_done;
 
     rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     if (recording_ctx.state != RECORDING_STATE_IDLE)
     {
         rt_mutex_release(&recording_ctx.lock);
-        return -RT_EBUSY;
+        result = -RT_EBUSY;
+        goto play_done;
     }
+    rt_mutex_release(&recording_ctx.lock);
+    if (local_audio_arbiter_acquire(
+            LOCAL_AUDIO_OWNER_RECORDING_PLAYBACK) != RT_EOK)
+    {
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        recording_set_status_locked("Music playback is active");
+        rt_mutex_release(&recording_ctx.lock);
+        result = -RT_EBUSY;
+        goto play_done;
+    }
+
+    rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
     strncpy(recording_ctx.active_path, path,
             sizeof(recording_ctx.active_path) - 1U);
     recording_ctx.active_path[sizeof(recording_ctx.active_path) - 1U] = '\0';
@@ -545,6 +630,7 @@ rt_err_t recording_service_play(const char *path)
             sizeof(recording_ctx.active_name) - 1U);
     recording_ctx.active_name[sizeof(recording_ctx.active_name) - 1U] = '\0';
     recording_ctx.playback_stop_requested = 0U;
+    recording_ctx.playback_card_generation = tf_card_generation();
     recording_ctx.state_started_tick = rt_tick_get();
     recording_ctx.state = RECORDING_STATE_PLAYING;
     recording_set_status_locked("Playing");
@@ -557,11 +643,17 @@ rt_err_t recording_service_play(const char *path)
         recording_ctx.state = RECORDING_STATE_IDLE;
         recording_set_status_locked("Playback thread failed");
         rt_mutex_release(&recording_ctx.lock);
-        return -RT_ENOMEM;
+        local_audio_arbiter_release(LOCAL_AUDIO_OWNER_RECORDING_PLAYBACK);
+        result = -RT_ENOMEM;
+        goto play_done;
     }
     rt_thread_startup(recording_ctx.playback_thread);
     rt_mutex_release(&recording_ctx.lock);
-    return RT_EOK;
+    result = RT_EOK;
+
+play_done:
+    rt_mutex_release(&recording_ctx.operation_lock);
+    return result;
 }
 
 static uint8_t recording_is_wav_name(const char *name)
@@ -601,13 +693,21 @@ int recording_service_list(recording_entry_t *entries, uint16_t max_entries)
     if (entries == RT_NULL || max_entries == 0U)
         return 0;
     recording_service_init();
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
     if (recording_prepare_directory() != RT_EOK)
+    {
+        rt_mutex_release(&recording_ctx.operation_lock);
         return -1;
+    }
 
     directory = opendir(recording_ctx.record_directory);
     if (directory == RT_NULL)
+    {
+        rt_mutex_release(&recording_ctx.operation_lock);
         return -1;
-    while ((item = readdir(directory)) != RT_NULL && count < max_entries)
+    }
+    while (tf_card_is_mounted() &&
+           (item = readdir(directory)) != RT_NULL && count < max_entries)
     {
         struct stat st;
         recording_entry_t *entry;
@@ -626,6 +726,12 @@ int recording_service_list(recording_entry_t *entries, uint16_t max_entries)
     }
     closedir(directory);
 
+    if (!tf_card_is_mounted())
+    {
+        rt_mutex_release(&recording_ctx.operation_lock);
+        return -1;
+    }
+
     for (i = 0U; i < count; i++)
     {
         for (j = (uint16_t)(i + 1U); j < count; j++)
@@ -638,5 +744,145 @@ int recording_service_list(recording_entry_t *entries, uint16_t max_entries)
             }
         }
     }
+    rt_mutex_release(&recording_ctx.operation_lock);
     return (int)count;
+}
+
+rt_err_t recording_service_delete(const char *path)
+{
+    const char *name;
+    size_t directory_length;
+    rt_err_t result = -RT_ERROR;
+
+    if (path == RT_NULL)
+        return -RT_EINVAL;
+    recording_service_init();
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
+    if (recording_prepare_directory() != RT_EOK)
+        goto delete_done;
+
+    directory_length = strlen(recording_ctx.record_directory);
+    if (strncmp(path, recording_ctx.record_directory, directory_length) != 0 ||
+        path[directory_length] != '/')
+        goto delete_done;
+    name = path + directory_length + 1U;
+    if (name[0] == '\0' || strchr(name, '/') != RT_NULL ||
+        strstr(name, "..") != RT_NULL || !recording_is_wav_name(name))
+        goto delete_done;
+
+    rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+    if (recording_ctx.state != RECORDING_STATE_IDLE)
+    {
+        recording_set_status_locked("Stop recording or playback first");
+        rt_mutex_release(&recording_ctx.lock);
+        result = -RT_EBUSY;
+        goto delete_done;
+    }
+    rt_mutex_release(&recording_ctx.lock);
+
+    rt_set_errno(0);
+    if (unlink(path) != 0)
+    {
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        rt_snprintf(recording_ctx.status, sizeof(recording_ctx.status),
+                    "Delete failed: %d", rt_get_errno());
+        recording_ctx.generation++;
+        rt_mutex_release(&recording_ctx.lock);
+        goto delete_done;
+    }
+
+    rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+    recording_set_status_locked("Recording deleted");
+    rt_mutex_release(&recording_ctx.lock);
+    rt_kprintf("recording: deleted %s\n", path);
+    result = RT_EOK;
+
+delete_done:
+    rt_mutex_release(&recording_ctx.operation_lock);
+    return result;
+}
+
+static void recording_tf_card_event(tf_card_event_t event, void *user_data)
+{
+    recording_state_t state;
+    audio_client_t client = RT_NULL;
+    int fd = -1;
+    uint32_t waited_ms = 0U;
+
+    (void)user_data;
+    if (!recording_initialized)
+        return;
+
+    if (event == TF_CARD_EVENT_MOUNTED)
+    {
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        if (recording_ctx.state == RECORDING_STATE_IDLE)
+            recording_set_status_locked("Ready");
+        rt_mutex_release(&recording_ctx.lock);
+        return;
+    }
+    if (event != TF_CARD_EVENT_REMOVING)
+        return;
+
+    rt_mutex_take(&recording_ctx.operation_lock, RT_WAITING_FOREVER);
+    rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+    state = recording_ctx.state;
+    if (state == RECORDING_STATE_RECORDING)
+    {
+        recording_ctx.state = RECORDING_STATE_STOPPING;
+        recording_set_status_locked("TF card removed");
+        client = recording_ctx.record_client;
+    }
+    else if (state == RECORDING_STATE_PLAYING ||
+             state == RECORDING_STATE_STOPPING)
+    {
+        recording_ctx.playback_stop_requested = 1U;
+    }
+    rt_mutex_release(&recording_ctx.lock);
+
+    if (state == RECORDING_STATE_RECORDING)
+    {
+        if (client != RT_NULL)
+            (void)audio_close(client);
+        recording_ctx.record_client = RT_NULL;
+        fd = recording_ctx.record_fd;
+        recording_ctx.record_fd = -1;
+        if (fd >= 0)
+            (void)close(fd);
+        local_audio_arbiter_release(LOCAL_AUDIO_OWNER_RECORDING);
+
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        recording_ctx.state = RECORDING_STATE_IDLE;
+        recording_set_status_locked("TF card removed");
+        rt_mutex_release(&recording_ctx.lock);
+        rt_kprintf("recording: capture aborted after TF removal\n");
+    }
+    else if (state == RECORDING_STATE_PLAYING ||
+             state == RECORDING_STATE_STOPPING)
+    {
+        while (waited_ms < RECORDING_REMOVE_WAIT_MS)
+        {
+            rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+            if (recording_ctx.playback_thread == RT_NULL)
+            {
+                rt_mutex_release(&recording_ctx.lock);
+                break;
+            }
+            rt_mutex_release(&recording_ctx.lock);
+            rt_thread_mdelay(RECORDING_PLAY_SLICE_MS);
+            waited_ms += RECORDING_PLAY_SLICE_MS;
+        }
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        recording_set_status_locked("TF card removed");
+        rt_mutex_release(&recording_ctx.lock);
+        if (waited_ms >= RECORDING_REMOVE_WAIT_MS)
+            rt_kprintf("recording: playback stop timed out on TF removal\n");
+    }
+    else
+    {
+        rt_mutex_take(&recording_ctx.lock, RT_WAITING_FOREVER);
+        recording_set_status_locked("TF card removed");
+        rt_mutex_release(&recording_ctx.lock);
+    }
+    rt_mutex_release(&recording_ctx.operation_lock);
 }

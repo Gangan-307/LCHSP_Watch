@@ -45,6 +45,7 @@ void recording_service_get_snapshot(recording_snapshot_t *snapshot);
 rt_err_t recording_service_start(void);
 rt_err_t recording_service_stop(void);
 rt_err_t recording_service_play(const char *path);
+rt_err_t recording_service_delete(const char *path);
 int recording_service_list(recording_entry_t *entries, uint16_t max_entries);
 
 #ifdef __cplusplus
