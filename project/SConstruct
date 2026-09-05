@@ -27,6 +27,23 @@ if GetDepend('HSP_USING_OTA') and os.getenv('RTT_CC') == 'gcc':
 TARGET = rtconfig.OUTPUT_DIR + rtconfig.TARGET_NAME + '.' + rtconfig.TARGET_EXT
 # Prepare building environment
 objs = PrepareBuilding(None)
+
+# The SDK bundle parses every default root at runtime. Keep only the
+# project-pinned OTA trust anchor so HTTPS cannot exhaust the UI heap.
+def remove_sdk_tls_certificate(items):
+    filtered = []
+    for item in items:
+        if isinstance(item, list):
+            filtered.append(remove_sdk_tls_certificate(item))
+            continue
+        path = getattr(item, 'abspath', str(item)).replace('\\', '/').lower()
+        if path.endswith('/external/mbedtls_228/ports/src/tls_certificate.c'):
+            continue
+        filtered.append(item)
+    return filtered
+
+if GetDepend('HSP_USING_OTA'):
+    objs = remove_sdk_tls_certificate(objs)
 env = GetCurrentEnv()
 
 # Build application.
