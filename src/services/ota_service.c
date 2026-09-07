@@ -21,6 +21,7 @@
 #define OTA_WORKER_TICK       (10U)
 #define OTA_COMMAND_DEPTH     (2U)
 #define OTA_MIN_BATTERY       (40U)
+#define OTA_MIN_SYSTEM_HEAP_FREE (20U * 1024U)
 
 #ifndef HSP_OTA_SERVER_BASE_URL
 #define HSP_OTA_SERVER_BASE_URL ""
@@ -144,29 +145,26 @@ static void ota_build_device_identity(void)
     ota_client_id[output_index] = '\0';
 }
 
-static int ota_register_device(void)
-{
-    device_register_params_t parameters;
-
-    rt_memset(&parameters, 0, sizeof(parameters));
-    parameters.mac = ota_mac;
-    parameters.model = HSP_OTA_MODEL;
-    parameters.solution = HSP_OTA_SOLUTION;
-    parameters.version = HSP_OTA_CURRENT_VERSION;
-    parameters.ota_version = HSP_OTA_CURRENT_VERSION;
-    parameters.screen_width = "390";
-    parameters.screen_height = "450";
-    parameters.flash_type = "NOR";
-    parameters.chip_id = ota_client_id;
-    return dfu_pan_register_device(HSP_OTA_SERVER_BASE_URL, &parameters);
-}
-
 static uint8_t ota_server_configured(void)
 {
     const char *server_url = HSP_OTA_SERVER_BASE_URL;
 
     return strlen(server_url) > 8U &&
            strncmp(server_url, "https://", 8U) == 0;
+}
+
+static uint32_t ota_log_system_heap(const char *stage)
+{
+    rt_uint32_t total = 0U;
+    rt_uint32_t used = 0U;
+    rt_uint32_t maximum = 0U;
+
+    rt_memory_info(&total, &used, &maximum);
+    rt_kprintf("ota: heap %s total=%u used=%u free=%u peak=%u\n",
+               stage, (unsigned int)total, (unsigned int)used,
+               (unsigned int)(total >= used ? total - used : 0U),
+               (unsigned int)maximum);
+    return total >= used ? total - used : 0U;
 }
 
 static uint8_t ota_manifest_file_valid(const struct firmware_file_info *file)
@@ -242,19 +240,24 @@ static void ota_check_internal(void)
                       "请先连接手机并开启蓝牙网络共享");
         return;
     }
+    if (ota_log_system_heap("before query") < OTA_MIN_SYSTEM_HEAP_FREE)
+    {
+        ota_set_state(OTA_STATE_FAILED, OTA_ERROR_INTERNAL,
+                      "可用内存不足，请关闭其他页面后重试");
+        return;
+    }
 
 #ifdef RT_USING_PM
     rt_pm_request(PM_SLEEP_MODE_IDLE);
 #endif
     ota_build_device_identity();
-    if (ota_register_device() != 0)
-        rt_kprintf("ota: device registration failed; continuing version query\n");
 
     rt_snprintf(query_url, sizeof(query_url), HSP_OTA_QUERY_URL_FORMAT,
                 ota_client_id);
     result = dfu_pan_query_latest_version(query_url, HSP_OTA_CURRENT_VERSION,
                                           latest_version,
                                           sizeof(latest_version));
+    ota_log_system_heap("after query");
 #ifdef RT_USING_PM
     rt_pm_release(PM_SLEEP_MODE_IDLE);
 #endif

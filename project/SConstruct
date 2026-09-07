@@ -22,7 +22,8 @@ AddLCPU(SIFLI_SDK,rtconfig.CHIP,"../../src/lcpu_img.c")
 # Set default compile options
 SifliEnv()
 if GetDepend('HSP_USING_OTA') and os.getenv('RTT_CC') == 'gcc':
-    rtconfig.CFLAGS += ' -Wno-error=incompatible-pointer-types'
+    rtconfig.CFLAGS += (' -Wno-error=incompatible-pointer-types'
+                        ' -DMBEDTLS_PLATFORM_MEMORY')
 
 TARGET = rtconfig.OUTPUT_DIR + rtconfig.TARGET_NAME + '.' + rtconfig.TARGET_EXT
 # Prepare building environment

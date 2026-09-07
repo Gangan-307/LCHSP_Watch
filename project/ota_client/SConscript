@@ -8,6 +8,7 @@ src = [
     'hsp_bt_pan_ota.c',
     'hsp_dfu_pan_flash.c',
     'hsp_tls_certificate.c',
+    'hsp_tls_memory.c',
 ]
 
 group = DefineGroup('hsp_ota_client', src,

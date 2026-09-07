@@ -4,7 +4,7 @@
 椭圆形触摸屏，使用 SiFli SDK v2.5、RT-Thread 和 LVGL v8.3.11，包含手表
 UI、板载硬件服务、TF 卡应用、经典蓝牙音频控制和 Android BLE 配套协议。
 
-当前对外固件版本：`0.4.0`
+当前对外固件版本：`0.4.1`
 
 ## 项目概览
 
@@ -52,7 +52,7 @@ UI、板载硬件服务、TF 卡应用、经典蓝牙音频控制和 Android BLE
 | 遥控拍照 | 依赖手机 HID | 支持立即、3 秒和 5 秒倒计时快门 |
 | 音乐封面、照片预览 | 已实现 | BLE JPEG 接收、固定工作区 RGB565 解码、缩放和照片拖动预览 |
 | PAN/NTP | 部分实现 | 底层连接和 NTP 已接入，设置页 PAN 偏好尚未完整驱动服务 |
-| 主固件 PAN OTA | 已接入 | 设置页/App 检查更新，独立 DFU Loader 下载并写入主固件，默认不配置服务端 |
+| 主固件 PAN OTA | 已实现并已配置 | 设置页/App 检查更新，手表通过手机 PAN 联网，独立 DFU Loader 下载、校验并写入主固件 |
 
 ## 快速开始
 
@@ -89,7 +89,7 @@ project/build_sf32lb52-lchspi-ulp_hcpu/download.bat
 project/build_sf32lb52-lchspi-ulp_hcpu/uart_download.bat
 ```
 
-`main.bin` 只是 HCPU 应用镜像。OTA 分区表与旧版本不同，首次部署 `0.4.0` 时必须
+`main.bin` 只是 HCPU 应用镜像。OTA 分区表与旧版本不同，首次部署 `0.4.1` 时必须
 使用 SDK 生成的完整下载脚本，一次烧录 `ftab + bootloader + dfu + main`。只烧
 `main.bin` 无法建立 OTA Loader，且主固件地址也会与旧分区表不一致。
 
@@ -120,14 +120,69 @@ uart_download.bat
 
 ### 5. 配置主固件 OTA
 
-OTA 服务地址默认留空，避免误刷 SiFli 示例服务器上的固件。部署自己的兼容服务后，
-在 `project/proj.conf` 中设置可信 HTTPS 地址：
+当前主固件已启用 PAN OTA，并在 `project/proj.conf` 中配置项目服务器：
+
+<p align="center">
+  <img src="image/number/ota.png" alt="OTA 固件升级进度" width="320">
+  <br>
+  OTA 固件升级进度
+</p>
 
 ```text
-CONFIG_HSP_OTA_SERVER_BASE_URL="https://ota.example.com"
+CONFIG_HSP_USING_OTA=y
+CONFIG_HSP_OTA_SERVER_BASE_URL="https://47-76-221-194.sslip.io"
 ```
 
-服务端沿用 `pan_ota` 的注册和版本查询接口。升级清单只允许一个有效镜像，并且必须满足：
+版本查询地址由主固件自动拼接为：
+
+```text
+https://47-76-221-194.sslip.io/v2/example/pan_ota/
+SF32LB52_ULP_NOR_TFT_CO5300/sf32lb52-lchspi-ulp
+?chip_id=<手表生成的客户端 ID>&version=latest
+```
+
+#### OTA 实现流程
+
+1. 用户在手表设置页或 Android App 中发出“检查更新”命令。
+2. `src/services/ota_service.c` 的独立 RT-Thread 工作线程通过手机蓝牙 PAN 查询 HTTPS
+   版本接口，不在 LVGL 线程中执行网络请求。
+3. 主固件比较服务器版本并校验升级清单，将合法的镜像信息写入内部 Flash。
+4. 用户确认安装后，主固件检查 PAN、电量和本地音频状态，设置升级标志并重启。
+5. `project/dfu_pan_loader/` 启动后重新通过 PAN 下载 `main.bin`，校验大小和 CRC32，
+   再将镜像写入主固件分区 `0x12218000`。
+6. Loader 校验通过后清除升级状态并启动新的主固件。
+
+Android App 只通过 BLE 发送检查/安装命令、接收 OTA 状态和打开系统网络共享设置，
+不接收或中转固件文件。版本查询与固件下载都由手表使用手机 PAN 网络直接完成。
+
+#### 清单格式与校验
+
+服务端响应需兼容 SiFli `dfu_pan` 格式。下面是 `0.4.1` 的结构示例，其中
+`file_size` 和 `crc32` 必须替换为本次实际生成的 `main.bin` 参数：
+
+```json
+{
+  "result": 200,
+  "data": [
+    {
+      "name": "v0.4.1",
+      "files": [
+        {
+          "file_id": 1,
+          "file_name": "main.bin",
+          "url": "https://47-76-221-194.sslip.io/releases/0.4.1/main.bin",
+          "addr": "0x12218000",
+          "file_size": 4496204,
+          "crc32": "0xd0a45804",
+          "region_size": "0x00788000"
+        }
+      ]
+    }
+  ]
+}
+```
+
+主固件只接受一个有效镜像，且清单必须满足：
 
 - `file_name` 为 `main.bin`。
 - `addr` 为 `0x12218000`。
@@ -135,9 +190,65 @@ CONFIG_HSP_OTA_SERVER_BASE_URL="https://ota.example.com"
 - `region_size` 不超过 `0x00788000`。
 - `url` 使用 HTTPS，`crc32` 与发布的 `main.bin` 一致。
 
-手机 App 不接收或转发固件文件，只负责通过 BLE 发出检查/安装命令、显示状态并打开
-Android 网络共享设置。检查和下载均由手表通过手机 PAN 网络完成。升级前需保持蓝牙
-网络共享开启，停止 TF 音乐和录音，并保证电量不低于 40% 或正在充电。
+本项目的 OTA CRC32 初值为 `0xffffffff`，不能直接使用默认初值为 0 的普通 CRC32
+工具。进入构建目录后可用以下命令同时得到文件大小和清单所需 CRC：
+
+```bash
+python3 -c "import zlib; d=open('main.bin','rb').read(); print(len(d), '0x%08x' % zlib.crc32(d, 0xffffffff))"
+```
+
+#### 发布 `0.4.1`
+
+1. 确认 `src/bluetooth/find_phone_ble.h` 中的
+   `HSP_WATCH_FIRMWARE_VERSION` 为 `0.4.1`，然后执行完整构建。
+2. 将 `project/build_sf32lb52-lchspi-ulp_hcpu/main.bin` 上传到服务器，例如
+   `/releases/0.4.1/main.bin`；该 URL 必须可通过 HTTPS 直接下载，不能返回登录页。
+3. 使用上面的命令计算上传文件的实际大小和 OTA CRC32，并同步更新服务器清单。
+4. 将清单版本设置为 `v0.4.1`，确认下载地址、Flash 地址和区域大小无误后再发布。
+5. 分别访问版本查询 URL 和固件 URL，确认返回 HTTP 200，且服务器文件大小与清单一致。
+
+同一版本不会触发升级：运行 `0.4.1` 的手表只有在服务器 `name` 高于 `v0.4.1` 时才会
+显示新版本。重新发布有代码变化的固件时应递增版本号，不能只覆盖同名文件。
+
+#### 运行条件与稳定性保护
+
+- 手表已连接手机，手机已开启蓝牙网络共享且自身可以访问互联网。
+- TF 音乐和录音均已停止；本地音频被占用时安装请求会被拒绝。
+- 电量不低于 40%，或者手表正在使用外部电源。
+- 查询前系统堆剩余空间不少于 20 KB，否则 OTA 会返回内存不足而不会继续请求。
+- 主固件和 Loader 的 MbedTLS 都使用 96 KB PSRAM 专用 memheap；分配失败不会回退并
+  挤占 LVGL/系统堆。
+- 固件仅内置当前服务器证书链所需的 ISRG Root X1 根证书，服务器更换 CA 后需同步更新
+  `project/ota_client/hsp_tls_certificate.c`。
+- 从设置页或蓝牙页返回蜂窝页时会销毁原 LVGL 页面，避免 OTA 内存压力后继续保留页面树。
+
+#### 真机验证
+
+首次验证 OTA 分区时，必须先通过下载器完整烧录 `ftab + bootloader + dfu + main`。
+只烧录 `main.bin` 不会安装修正后的 Loader。启动后串口应出现：
+
+```text
+ota_tls: PSRAM pool ready, 98304 bytes
+```
+
+手机连接手表并开启蓝牙网络共享后，在设置页进入系统更新并点击“检查更新”。查询过程
+应出现以下堆日志，页面仍可正常刷新：
+
+```text
+ota: heap before query total=... used=... free=... peak=...
+ota: heap after query total=... used=... free=... peak=...
+```
+
+发现高版本后点击安装，手表应重启进入 DFU PAN Loader，完成下载、CRC 校验和写入后
+自动启动主固件。最后在设置页确认版本号，并再次检查更新验证“当前已是最新版本”。
+
+常见失败定位：
+
+- 一直提示网络失败：检查手机 PAN、DNS、HTTPS 证书链和版本接口是否返回 HTTP 200。
+- 提示清单无效：检查是否仅有一个 `main.bin`，以及地址、大小、区域和 HTTPS URL。
+- Loader 报 CRC 错误：重新对服务器上的文件计算带 `0xffffffff` 初值的 CRC，避免只
+  计算本地文件后又上传了不同版本。
+- 重启后未进入下载：通常是设备只烧过 `main.bin`，需要重新完整烧录含 `dfu.bin` 的固件。
 
 ## 主要交互
 
@@ -421,7 +532,7 @@ PAN 偏好目前不会完整建立连接，可通过 FinSH 执行 `pan_cmd conn_
 - TF 音乐只扫描 `/music` 第一层，最多 64 首，不读取专辑封面或 ID3 元数据。
 - TF 热插拔使用 SPI 扇区健康探测，没有独立卡检测引脚，拔卡确认最长约 2 秒。
 - 蓝牙设置中的 PAN 开关只保存页面内偏好，底层 PAN/NTP 尚未完整受该开关控制。
-- OTA 服务地址默认留空；配置并部署兼容的可信服务端前只能验证入口和错误提示。
+- OTA 当前仅升级本开发板的 `main.bin`；服务端证书、分区地址和清单格式必须与固件配置一致。
 - 连接新手机、移除单个配对、清除全部配对、通话和部分蓝牙诊断入口仍为预留。
 - 位置页是坐标信息和静态示意图，不包含地图瓦片、路线规划或导航。
 - 活动累计和 RGB 参数仍主要保存在 RAM，重启后不会完整恢复。
@@ -450,6 +561,7 @@ LVGL 启动和并发问题可参考：
 
 | 固件版本 | 日期 | 主要修改 |
 | --- | --- | --- |
+| `0.4.1` | 2026-09-07 | 稳定主固件 PAN OTA：版本查询移入独立工作线程，主固件与 DFU Loader 使用 96 KB PSRAM 专用 TLS 内存池，精简为 ISRG Root X1 根证书，增加系统堆余量保护与查询前后日志；修复设置页、蓝牙页返回蜂窝页后的 LVGL 页面生命周期问题，并配置项目 HTTPS OTA 服务。 |
 | `0.4.0` | 2026-09-03 | 增加 TF 文件管理、TF WAV 录音、TF/蓝牙双模式音乐和 TF 稳定化；音乐封面与照片预览改用固定 4 KB 工作区解码至 RGB565；正式接入设置页、Android App 和独立 DFU PAN Loader 的主固件 OTA 流程。 |
 | `0.3.0` | 2026-08-21 | 新增闹钟、计算器、喝水提醒、番茄钟、日历、遥控拍照、图片预览、指南针和系统设置。 |
 | `0.2.0` | 2026-08-14 | 完善蜂窝菜单、图片表盘、导航、实体按键、电源、通知、音乐、活动、充电和震动反馈。 |

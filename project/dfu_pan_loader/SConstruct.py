@@ -16,7 +16,8 @@ def create_env(proj_path=None):
 
     SifliEnv(proj_path)
     if os.getenv('RTT_CC') == 'gcc':
-        rtconfig.CFLAGS += ' -Wno-error=incompatible-pointer-types'
+        rtconfig.CFLAGS += (' -Wno-error=incompatible-pointer-types'
+                            ' -DMBEDTLS_PLATFORM_MEMORY')
 
 
 def build(env=None):
@@ -36,15 +37,14 @@ def build(env=None):
         return filtered
 
     objs = remove_sdk_tls_certificate(objs)
-    certificate = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), '..', 'ota_client',
-        'hsp_tls_certificate.c'
+    ota_client_dir = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', 'ota_client'
     ))
-    certificate_object = env.Object(
-        os.path.join(env['build_dir'], 'hsp_tls_certificate.o'),
-        certificate
-    )
-    objs.extend(certificate_object)
+    for source_name in ('hsp_tls_certificate.c', 'hsp_tls_memory.c'):
+        source = os.path.join(ota_client_dir, source_name)
+        target_name = os.path.splitext(source_name)[0] + '.o'
+        objs.extend(env.Object(os.path.join(env['build_dir'], target_name),
+                               source))
     target = os.path.join(
         env['build_dir'], rtconfig.TARGET_NAME + '.' + rtconfig.TARGET_EXT
     )

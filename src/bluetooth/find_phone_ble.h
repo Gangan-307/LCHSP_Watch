@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define HSP_WATCH_FIRMWARE_VERSION "0.4.0"
+#define HSP_WATCH_FIRMWARE_VERSION "0.4.1"
 
 /* Call after the Bluetooth stack has brought BLE up. Registers and advertises
  * the watch-owned companion GATT service. */
@@ -19,7 +19,6 @@ void find_phone_ble_stop(void);
 
 /* Ask the Android companion to send the newest system-camera photo. */
 uint8_t find_phone_ble_request_photo_preview(void);
-
 /* Publish the latest local power state to a subscribed Android companion. */
 void find_phone_ble_publish_device_status(uint8_t percent, uint8_t battery_valid,
                                           uint8_t charging);

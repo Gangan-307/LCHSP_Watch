@@ -11,6 +11,7 @@
 #include "services/watch_settings.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/generated/hsp_font_cjk_22.h"
+#include "ui/generated/ui_helpers.h"
 #include "ui/system/system_power_ui.h"
 
 #define SETTINGS_BG             0x050608
@@ -775,6 +776,8 @@ void ui_Settings_open_from_app_grid(void)
 
 void ui_Settings_return(void)
 {
+    lv_obj_t *screen;
+
     settings_ui_wait_release();
     if (settings_page == SETTINGS_PAGE_UPDATE &&
         ota_service_install_in_progress())
@@ -785,5 +788,11 @@ void ui_Settings_return(void)
         settings_ui_build();
         return;
     }
+
+    screen = ui_Settings;
+    if (screen != NULL)
+        lv_obj_add_event_cb(screen, scr_unloaded_delete_cb,
+                            LV_EVENT_SCREEN_UNLOADED,
+                            ui_Settings_screen_destroy);
     ui_AppGrid_open();
 }

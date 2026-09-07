@@ -97,8 +97,15 @@ static void bt_settings_start_refresh_timer(void)
 
 void ui_BluetoothSettings_return(void)
 {
+    lv_obj_t *screen = ui_BluetoothSettings;
+
     bt_settings_stop_refresh_timer();
     bt_settings_wait_release();
+
+    if (screen != NULL)
+        lv_obj_add_event_cb(screen, scr_unloaded_delete_cb,
+                            LV_EVENT_SCREEN_UNLOADED,
+                            ui_BluetoothSettings_screen_destroy);
 
     if (bt_settings_source == BT_SETTINGS_SOURCE_APP_GRID)
         ui_AppGrid_open();
