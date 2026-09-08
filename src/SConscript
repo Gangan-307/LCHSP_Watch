@@ -22,6 +22,7 @@ module_dirs = [
     'ui/calendar',
     'ui/camera',
     'ui/compass',
+    'ui/activity',
     'ui/water',
     'ui/tomato',
     'ui/music',

@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#define HSP_WATCH_FIRMWARE_VERSION "0.4.1"
+#define HSP_WATCH_FIRMWARE_VERSION "0.4.2"
 
 /* Call after the Bluetooth stack has brought BLE up. Registers and advertises
  * the watch-owned companion GATT service. */

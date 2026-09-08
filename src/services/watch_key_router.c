@@ -9,6 +9,7 @@
 #include "ui/calendar/calendar_ui.h"
 #include "ui/camera/camera_ui.h"
 #include "ui/compass/compass_ui.h"
+#include "ui/activity/activity_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/safe/safe_ui.h"
 #include "ui/settings/settings_ui.h"
@@ -58,6 +59,8 @@ static void watch_key_router_back(void)
         ui_Camera_return();
     else if (active_screen == ui_Compass)
         ui_Compass_return();
+    else if (active_screen == ui_Activity)
+        ui_Activity_return();
     else if (active_screen == ui_Alarm)
         ui_Alarm_return();
     else if (active_screen == ui_Safe)

@@ -30,6 +30,7 @@ extern "C" {
 #include "ui/tomato/tomato_ui.h"
 #include "ui/camera/camera_ui.h"
 #include "ui/compass/compass_ui.h"
+#include "ui/activity/activity_ui.h"
 #include "ui/app_grid/app_grid_ui.h"
 #include "ui/tf_file_manager/tf_file_manager_ui.h"
 #include "ui/record/record_ui.h"

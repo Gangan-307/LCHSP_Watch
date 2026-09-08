@@ -81,6 +81,10 @@ static uint8_t ui_app_grid_open(app_grid_app_id_t app_id)
         ui_Muyu_open_from_app_grid();
         return 1U;
 
+    case APP_GRID_APP_ACTIVITY:
+        ui_Activity_open_from_app_grid();
+        return 1U;
+
     case APP_GRID_APP_ALARM:
         ui_Alarm_open_from_app_grid();
         return 1U;
@@ -174,6 +178,7 @@ void ui_destroy(void)
     ui_Tomato_screen_destroy();
     ui_Camera_screen_destroy();
     ui_Compass_screen_destroy();
+    ui_Activity_screen_destroy();
     ui_ScreenMusic_screen_destroy();
     ui_Alarm_screen_destroy();
     ui_AppGrid_screen_destroy();
