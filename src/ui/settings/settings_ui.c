@@ -1,4 +1,5 @@
 #include "settings_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -742,6 +743,7 @@ void ui_Settings_screen_init(void)
     if (ui_Settings != NULL)
         return;
     ui_Settings = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Settings, ui_Settings_screen_destroy);
     lv_obj_clear_flag(ui_Settings, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Settings, lv_color_hex(SETTINGS_BG),
                               LV_PART_MAIN);
@@ -776,8 +778,6 @@ void ui_Settings_open_from_app_grid(void)
 
 void ui_Settings_return(void)
 {
-    lv_obj_t *screen;
-
     settings_ui_wait_release();
     if (settings_page == SETTINGS_PAGE_UPDATE &&
         ota_service_install_in_progress())
@@ -789,10 +789,5 @@ void ui_Settings_return(void)
         return;
     }
 
-    screen = ui_Settings;
-    if (screen != NULL)
-        lv_obj_add_event_cb(screen, scr_unloaded_delete_cb,
-                            LV_EVENT_SCREEN_UNLOADED,
-                            ui_Settings_screen_destroy);
     ui_AppGrid_open();
 }

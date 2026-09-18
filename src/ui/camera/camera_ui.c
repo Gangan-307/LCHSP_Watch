@@ -1,4 +1,5 @@
 #include "camera_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -782,6 +783,7 @@ void ui_Camera_screen_init(void)
         return;
 
     ui_Camera = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Camera, ui_Camera_screen_destroy);
     ui_swipe_back_register(ui_Camera, ui_Camera_return);
     lv_obj_clear_flag(ui_Camera, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Camera, lv_color_hex(CAMERA_BG), LV_PART_MAIN);

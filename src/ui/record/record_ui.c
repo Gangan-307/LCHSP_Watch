@@ -1,4 +1,5 @@
 #include "record_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -476,14 +477,12 @@ void ui_Record_screen_init(void)
     lv_obj_set_scroll_dir(record_list, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(record_list, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_pad_bottom(record_list, 12, LV_PART_MAIN);
+    record_timer = lv_timer_create(record_ui_timer_event, 250U, NULL);
 }
 
 void ui_Record_init(void)
 {
     recording_service_init();
-    ui_Record_screen_init();
-    if (record_timer == NULL)
-        record_timer = lv_timer_create(record_ui_timer_event, 250U, NULL);
 }
 
 void ui_Record_screen_destroy(void)
@@ -514,7 +513,7 @@ void ui_Record_open_from_app_grid(void)
 {
     record_ui_wait_release();
     if (ui_Record == NULL)
-        ui_Record_init();
+        ui_Record_screen_init();
     record_ui_refresh_list();
     record_tf_generation = tf_card_generation();
     record_ui_refresh();
@@ -530,5 +529,6 @@ void ui_Record_return(void)
     if (snapshot.state == RECORDING_STATE_RECORDING ||
         snapshot.state == RECORDING_STATE_PLAYING)
         (void)recording_service_stop();
+    ui_screen_release_on_unload(ui_Record, ui_Record_screen_destroy);
     ui_AppGrid_open();
 }

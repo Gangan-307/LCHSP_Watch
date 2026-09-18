@@ -1,4 +1,5 @@
 #include "calendar_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 #include "calendar_lunar.h"
 
 #include <stdint.h>
@@ -679,6 +680,7 @@ void ui_Calendar_screen_init(void)
     if (ui_Calendar != NULL)
         return;
 
+    ui_Calendar_init();
     calendar_ui_state = CALENDAR_UI_MONTH;
     if (!calendar_ui_read_today(1U))
     {
@@ -687,6 +689,7 @@ void ui_Calendar_screen_init(void)
         calendar_selected_day = 1U;
     }
     ui_Calendar = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Calendar, ui_Calendar_screen_destroy);
     lv_obj_add_event_cb(ui_Calendar, calendar_ui_gesture_event,
                         LV_EVENT_GESTURE, NULL);
     lv_obj_clear_flag(ui_Calendar, LV_OBJ_FLAG_SCROLLABLE);
@@ -699,6 +702,11 @@ void ui_Calendar_screen_init(void)
 
 void ui_Calendar_screen_destroy(void)
 {
+    lv_async_call_cancel(calendar_ui_async_build, NULL);
+    calendar_build_queued = 0U;
+    if (calendar_timer != NULL)
+        lv_timer_del(calendar_timer);
+    calendar_timer = NULL;
     if (ui_Calendar != NULL)
         lv_obj_del(ui_Calendar);
     ui_Calendar = NULL;

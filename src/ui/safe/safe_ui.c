@@ -1,4 +1,5 @@
 #include <rtthread.h>
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include "safe_ui.h"
 #include "agif.h"
@@ -51,6 +52,7 @@ void ui_Safe_screen_init(void)
         return;
 
     ui_Safe = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Safe, ui_Safe_screen_destroy);
     ui_swipe_back_register(ui_Safe, ui_Safe_return);
     lv_obj_clear_flag(ui_Safe, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Safe, lv_color_black(), LV_PART_MAIN);

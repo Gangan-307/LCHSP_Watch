@@ -1,4 +1,5 @@
 #include "calculator_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <float.h>
 #include <stdint.h>
@@ -642,6 +643,7 @@ void ui_Calculator_screen_init(void)
         return;
 
     ui_Calculator = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Calculator, ui_Calculator_screen_destroy);
     ui_swipe_back_register(ui_Calculator, ui_Calculator_return);
     lv_obj_clear_flag(ui_Calculator, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Calculator, lv_color_hex(CALCULATOR_BG),

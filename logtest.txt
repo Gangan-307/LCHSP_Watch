@@ -1,0 +1,1160 @@
+[895552] I/drv.lcd lcd_task: set brightness 0
+[895574] I/drv.lcd lcd_task: display on
+[946412] I/drv.lcd lcd_task: set brightness 100
+[946436] I/drv.lcd lcd_task: display on
+[1153813] I/btsapp_hid bts: [L-U]hid mode change to 2
+
+[1154398] I/btsapp_hid bts: [L-U]hid mode change to 0
+
+compass raw: x=168 y=-981 z=1647
+Assertion failed at function:lv_obj_allocate_spec_attr, line number:347 ,(0)
+Previous ISR enable 0
+===================
+Thread Info        
+===================
+         pri  status      sp      top     stack size max used left tick  error
+-------- ---  ------- ---------- ---------- ----------  ------  ---------- ---
+bts       12  suspend 0x2006b798 0x2006b8a8 0x00000c00    55%   0x00000004 000
+KE_EVT3   10  suspend 0x20069860 0x20069960 0x00000400    49%   0x00000002 000
+KE_EVT0   25  suspend 0x20069448 0x20069548 0x00000400    25%   0x00000014 000
+KE_EVT2   12  suspend 0x20069030 0x20069130 0x00001000    24%   0x00000002 000
+bt_app    15  suspend 0x20062d88 0x20062e90 0x00000800    40%   0x00000006 000
+compass   26  suspend 0x200528d0 0x20052a68 0x00000800    40%   0x00000009 000
+wrist_wa  25  suspend 0x2002b188 0x2002b49d 0x00001000    39%   0x00000005 000
+activity  27  suspend 0x20062418 0x20062518 0x00000600    43%   0x00000006 000
+battery   28  suspend 0x20061a40 0x20061b3c 0x00000600    35%   0x00000007 000
+sdmusic   19  suspend 0x200568c0 0x200569d0 0x00001000    38%   0x00000003 000
+tpread    10  suspend 0x20014de0 0x20014eec 0x00000400    45%   0x00000001 000
+lcd_task  12  suspend 0x20014988 0x20014aec 0x00000800    43%   0x00000006 000
+tf_monit  30  ready   0x20050a08 0x20050b74 0x00000800    54%   0x00000003 -02
+tshell    20  suspend 0x2004efc8 0x2004f148 0x00001000    16%   0x0000000a 000
+deplayba  12  suspend 0x2001ea18 0x2001eb74 0x00000800    17%   0x0000000a 000
+bt_downv  11  suspend 0x2001b638 0x2001b758 0x000007d0    37%   0x0000000a 000
+audiosvr  11  suspend 0x2001d9f0 0x2001db58 0x00002400    08%   0x00000009 000
+tcpip     10  suspend 0x20046180 0x200462a0 0x00001000    07%   0x00000013 000
+etx       12  suspend 0x2003eb10 0x2003ec18 0x00000400    26%   0x00000010 000
+erx       12  suspend 0x2003e6c0 0x2003e744 0x00000400    13%   0x00000010 000
+tidle     31  ready   0x20034460 0x20034540 0x00000800    12%   0x00000002 000
+timer      4  suspend 0x200151e8 0x200152ec 0x00000400    25%   0x00000008 000
+main      19  ready   0x20044c78 0x2004506c 0x00001800    45%   0x00000004 000
+===================
+Mailbox Info       
+===================
+        entry size suspend thread
+------- ----  ---- --------------
+bt_app  0000  0008 1:bt_app
+mbox0   0000  0048 1:tcpip
+etxmb   0000  0008 1:etx
+erxmb   0000  0008 1:erx
+===================
+MessageQueue Info  
+===================
+         entry suspend thread
+-------- ----  --------------
+sdmusic  0000  1:sdmusic
+drv_lcd  0000  1:lcd_task�
+===================
+Mutex Info         
+===================
+           owner  hold suspend thread
+-------- -------- ---- --------------
+idle_tim (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+fat1     (null)   0000 0
+ble_flas (null)   0000 0
+compass  (null)   0000 0
+watch_se (null)   0000 0
+activity (null)   0000 0
+battery  (null)   0000 0
+ui_mutex (null)   0000 0
+record_o (null)   0000 0
+record   (null)   0000 0
+sdmusic_ (null)   0000 0
+sdmusic  (null)   0000 0
+music    (null)   0000 0
+tplck    (null)   0000 0
+phone_ms (null)   0000 0
+phone_sy (null)   0000 0
+tf_card  (null)   0000 0
+local_au (null)   0000 0
+fat0     (null)   0000 0
+int_stor (null)   0000 0
+audio_sv (null)   0000 0
+rgb_drv  (null)   0000 0
+rtc      (null)   0000 0
+ulog loc (null)   0000 0
+mu0      (null)   0000 0
+fslock   (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+spi1     (null)   0000 0
+===================
+Semaphore Info     
+===================
+         v   suspend thread
+-------- --- --------------
+bt_avrcp 001 0
+bt_av_si 001 0
+bt_av_si 001 0
+bts2_ev  000 1:bts
+KE       000 1:KE_EVT3
+KE       000 1:KE_EVT0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+KE       000 1:KE_EVT2
+sifli    000 0
+compass_ 000 1:compass
+battery_ 000 1:battery
+lv_data  001 0
+tp_ctrl  001 0
+lv_lcd   001 0
+lcd_msg  000 0
+lcd_draw 000 0
+drv_lcd  001 0
+shrx     000 0
+epic     001 0
+audpsram 001 0
+tlspsram 001 0
+ft6146   000 1:tpread
+aes_drv  001 0
+drv_eDma 001 0
+gpadc    001 0
+i2c4     000 0
+i2c3     000 0
+i2c2     000 0
+i2c1     000 0
+spi1     001 0
+heap     001 0
+flash2   001 0
+===================
+Memory Info     
+===================
+total memory: 247488 used memory : 247468 maximum allocated memory: 247468
+===================
+MemoryHeap Info     
+===================
+          pool size  max used size available size
+-------- ---------- ------------- --------------
+audpsram 131072     72            131000
+tlspsram 98304      72            98232
+No such directory
+disk free: 3.4 MB [ 891 block, 4096 bytes per block ] [total block 1018 total size 4169728]
+=====================
+PSP: 0x0x20044d9c, MSP: 0x0x20001fe0
+=====================
+ sp: 0x20044e00
+psr: 0x40000000
+r00: 0x00000000
+r01: 0x00000017
+r02: 0x00000175
+r03: 0x30000000
+r12: 0x122d9cad
+ lr: 0x122bc2e5
+ pc: 0x122bc2e5
+=====================
+fatal error on thread: main
+SFBL
+Serial:c2,Chip:4,Package:3,Rev:3  Reason:00000000
+Serial PowerOnMOde:0 rtc_record:00000000
+
+ \ | /
+- SiFli Corporation
+ / | \     build on Sep  7 2026, 2.5.0 build 38a62371
+ 2020 - 2022 Copyright by SiFli team
+aw32001_init ok,  time consum: 0.00 ms.
+mount /dev sucess
+lwIP-2.1.2 initialized!
+[BUS]spi1 probe sdcard...
+[MSD] 8 [info] SD card goto IDLE mode OK!
+[MSD] 9 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 10 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 11 SD_V2: READ_OCR
+[MSD] 12 response:1,0,ff,80
+[MSD] 12 [info] OCR is 0x00FF8000
+[MSD] 119 SD_V2 again: READ_OCR
+[MSD] 120 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 120 [info] It is SD2.0 SDHC Card!!!
+[MSD] 122 [info] CSD Version 2.0
+[MSD] 123 [info] CSD : C_SIZE : 15359
+[MSD] 123 [info] card capacity : 7.50 Gbyte
+[MSD] 124 [info] sector_count : 15728640
+[MSD] 124 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+[SD]msd init ok
+find sd0 ok ! 0x2003eff0
+[6597] I/drv.rtc main: PSCLR=0x80000100 DivAI=128 DivAF=0 B=256
+[6622] I/drv.rtc main: RTC use LXT RTC_CR=00000001
+
+[6643] I/drv.rtc main: Init RTC, wake = 0
+
+[6804] I/drv.audprc main: init 00 ADC_PATH_CFG0 0x606
+
+[6826] I/drv.audprc main: HAL_AUDPRC_Init res 0
+
+[6847] I/drv.audcodec main: HAL_AUDCODEC_Init res 0
+
+[6869] I/drv.rgb main: rgbled register success, supporting 1 LEDs
+[6895] I/TOUCH main: Regist touch screen driver, probe=0x12222649 
+[I/FAL] Flash Abstraction Layer (V0.5.99) initialize success.
+[I/FAL] The FAL MTD NOR device (dfu) created successfully
+[I/FAL] The FAL MTD NOR device (ble) created successfully
+call par CFG1(3313)
+fc 9, xtal 2000, pll 2143
+call par CFG1(3313)
+fc 7, xtal 2000, pll 1717
+ota_tls: PSRAM pool ready, 98304 bytes
+audio_mem: PSRAM pool ready, 131072 bytes
+[7199] I/audio audiosvr: audio server run
+[7217] I/audio bt_downv: audio_btdownlink run
+cwm_enable_gesture 0 1 0
+msh />Register musicfs to mtd device with base addr 0x129a0000
+storage: filesystem mounted at /
+RTC use LXT RTC_CR=00000001
+RTC Init success.
+SET RTC TIME : Wed Jan  1 08:30:00 2025
+RGB LED driver device [rgbled] found and initialized.
+[11120] I/drv.lcd main: [NONE] -> [OPENING]
+[11140] I/drv.lcd lcd_task: open
+[11154] I/drv.epic lcd_task: drv_gpu opened.
+[11171] I/drv.lcd lcd_task: HW open
+[11207] I/drv.lcd lcd_task: Try registered LCD driver...
+
+CO5300_ReadID 0x331100 
+[13528] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+
+CO5300_ReadID 0x331100 
+[19806] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+[19826] I/drv.lcd lcd_task: Found lcd co5300 id:331100h
+[19849] I/drv.lcd lcd_task: HW open done.
+[19865] I/drv.lcd lcd_task: [OPENING] -> [INITIALIZED]
+[19886] I/drv.lcd lcd_task: open done.
+[19906] I/drv.lcd_fb main: drv_lcd_fb_init
+[19926] I/drv.lcd_fb main: drv_lcd_fb_init done.
+[20036] I/TOUCH main: Open
+[20054] I/TOUCH tp_init: Find touch screen driver...
+[20075] I/TOUCH tp_init: Probe 12222649
+[20094] I/TOUCH tp_init: touch screen found driver  0x20017f00, ft6146
+[20122] I/TOUCH main: Opened.
+[20136] I/LVGL main: [littlevgl2rtt] Welcome to the littlevgl2rtt lib.
+[22894] E/drv.ft6146 tp_init: ft6146 id_H=64
+[22921] E/drv.ft6146 tp_init: ft6146 id_L=56
+UI mutex initialized!
+LVGL time update timer created successfully!
+alarm: loaded 1 alarm(s)
+[33268] I/sensor main: rt_sensor init success
+[33289] I/sensor main: rt_sensor init success
+[33307] I/sensor main: rt_sensor init success
+[33384] I/sensor.st.lsm6dsl main: sensor init success
+activity: hardware step counter enabled
+[33706] I/drv.lcd lcd_task: set brightness 100
+[33728] I/drv.lcd lcd_task: display on
+[33744] I/drv.lcd lcd_task: [INITIALIZED] -> [ON]
+[33766] I/audio main: private volume[1]=5
+[33784] I/audio main: spk mute=0
+MMC56x3 ID = 16
+[34552] I/sensor main: rt_sensor init success
+[34571] I/sensor.mmc56x3 main: mag sensor init success
+compass: MMC56X3 enabled on i2c3
+[34710] I/nvds mbox: read sleep time 3500
+[71217] I/sibles bt_app: enable BLE Core. Lib ver: bt.2.0.7f55268b
+[MSD] 2145 [info] SD card goto IDLE mode OK!
+[MSD] 2147 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 2147 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 2148 SD_V2: READ_OCR
+[MSD] 2149 response:1,40,ff,80
+[MSD] 2149 [info] OCR is 0x40FF8000
+[MSD] 2160 SD_V2 again: READ_OCR
+[MSD] 2161 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 2162 [info] It is SD2.0 SDHC Card!!!
+[MSD] 2164 [info] CSD Version 2.0
+[MSD] 2164 [info] CSD : C_SIZE : 15359
+[MSD] 2165 [info] card capacity : 7.50 Gbyte
+[MSD] 2165 [info] sector_count : 15728640
+[MSD] 2166 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+tf_card: TF card mounted at /tf, generation=2
+[104099] I/nvds mbox: hci en 32
+
+######################################################
+##                                                  ##
+##           BTS2 Demo Main Menu                    ##
+##   1. Generic Command                             ##
+##   6. A2DP Sink                                   ##
+##   8. L2CAP bqb test                              ##
+##   h. PAN                                         ##
+##   p. AVRCP                                       ##
+##   z. hid                                         ##
+##   s. Show Menu                                   ##
+##   q. Exit                                        ##
+##                                                  ##
+######################################################
+
+[104586] I/ble_cm mbox: read_bond_infor_from_flash: 0
+le p256 nvds get 0
+le p256 nvds get 0
+app addr nvds get 1
+[105091] I/sibles KE_EVT2: 
+BLE ready!
+
+[105110] I/btcomm KE_EVT2: Clear mask 1
+act num:0
+set cmd 0x91, stop_status:0, msg_status:1
+[122100] I/btapp_pan bts: >> PAN enable
+
+[122124] I/btapp_pan bts: >> PAN register successful
+
+[122235] I/btapp_ge bts: << Local device addreess: 5CFD:52:800803
+
+[122306] I/btapp.av bts: enable(1) ret 0
+[122857] I/audio_avrcp bts: >> AVCTP enabled
+
+[122895] I/btapp_ge bts: << Write eir data success!
+
+[122963] I/btsapp_hid bts: >> HID enabled
+
+[123147] I/btapp_ge bts: << Local LMP version: 12
+
+[123175] I/btapp_ge bts: << Local LMP subversion: 591
+
+[123198] I/btapp_ge bts: << Local controller manufacturer name id: 2636
+
+[123299] I/btapp_ge bts: << Local device name changed!
+
+[123405] I/btapp_pan bts: >> PAN enable success
+
+lwip system already init.
+[123435] I/BT.lwip bts: lwip:enter register_eth 537128564  537128552
+
+[123473] I/BT.lwip bts: eth device init ok name:b0
+[123561] I/btapp_ge bts: << Class of device has been changed!
+
+[123715] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[123736] I/btcomm bts: Clear mask 2
+[123751] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[123777] I/NO_TAG bts: profile 2 connect
+[123794] I/btapp.av bts:  -- av conn rmt device... peer_role:0 local_role:1
+
+[123824] I/btapp.av bts:  -- address: 7CA4:49:2FF552
+
+[123858] I/NO_TAG bts: >> av snk connect
+
+[123874] I/NO_TAG bts: Reconnect ret 0 link_type 0x 1
+[123907] I/btapp_ge bts: << Local device name: SifliDemo-3-8-80-52-fd-5c
+
+[123951] I/btapp_ge bts: service state 1
+[123976] I/sibles KE_EVT2: status=0, start_handle=0xe
+[124007] I/sibles KE_EVT2: status=0, start_handle=0x12
+[124045] I/btapp_ge bts: bt stack ready
+
+con_id = 3
+[124118] I/btapp_ge bts: << Class of device: 0x65020300
+
+[124245] I/NO_TAG bt_app: BT/BLE stack and profile ready
+[124347] I/btapp_ge bts: << Write scan enable success
+
+[124390] I/NO_TAG KE_EVT2: Sibles ADV start 0!
+
+[124453] I/NO_TAG bts: DM_ACL_CREATE_CONN_STATUS
+[124487] I/btapp_intf bt_app: set name     铠甲勇士召唤器
+
+[124565] I/NO_TAG KE_EVT2: HSP companion advertising started: 0
+[124594] I/btapp_ge bts: << Local device name changed!
+
+[124655] I/btapp_ge bts: << Scan mode: 0
+
+[124673] I/btapp_ge bts: <<            No scans enbd.
+
+[124787] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[124807] I/btcomm bts: Clear mask 2
+[124823] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[124852] I/btapp_ge bts: << Local device name: 铠甲勇士召唤器
+
+[124895] I/btapp_ge bts: service state 2
+[124927] I/btapp_ge bts: << Write eir data success!
+
+[147627] I/NO_TAG bts: link connected COD:0 Incoming:0 hdl 128 res 0
+
+[147658] I/NO_TAG bts: bd addr 7ca4-49-2ff552
+
+[147941] I/btapp_ge bts: device address: 7CA4:49:2FF552
+[147977] I/btapp_ge bts:     role: slave
+
+[148060] I/btapp_ge bts: << Write scan enable success
+
+[148165] I/btapp_ge bts: res = 0,page_num = 1,max_page_num = 2
+
+[148192] I/btapp_ge bts: ext_lmp_featr[0] = 0xb,ext_lmp_featr[1] = 0x0,ext_lmp_featr[2] = 0x0,ext_lmp_featr[3] = 0x0
+
+[148285] I/btapp_ge bts: << Scan mode: 0
+
+[148303] I/btapp_ge bts: <<            No scans enbd.
+
+[149564] I/btapp_ge bts: BTS2MU_GAP_ENCRYPTION_IND
+[149586] I/NO_TAG bts: Encryption competed
+[149602] I/NO_TAG bts: bd addr 0x7c:a4:49:2f:f5:52
+
+[150467] I/btapp.av bts: << (d0)av connect success,cfg = 1
+
+[153464] I/NO_TAG bts: profile 8 connect
+[153484] I/btsapp_hid bts:  -- address: 7CA4:49:2FF552
+
+[156935] I/btsapp_hid bts: [L-U]HID connect success
+
+[156966] I/NO_TAG bts: HID connected
+
+[156983] I/btapp_pan bts:  pan st 0
+
+[156999] I/btapp_pan bts: >> PAN connect
+
+[160086] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 1/10, result 268435460
+[161130] I/btapp_pan bts: << PAN local device addreess: 5CFD:52:800803, result=0
+
+[161189] I/NO_TAG bts: pan connect successed 
+
+[161213] I/btapp_pan bts:  BTS2MU_PAN_CONN_IND
+
+[161444] I/NO_TAG bts: pan disconnect with remote device
+
+[191099] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 2/10, result 268435460
+[220698] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 3/10, result 268435460
+[252772] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 4/10, result 268435460
+[NTP] PAN disconnected. Stop retrying.
+[268834] I/audio_avrcp bts: << avrcp indicate to connect with remote device
+
+music: AVRCP connected
+[268995] I/audio_avrcp bts: << register notificaiton volume changed 20
+
+[269294] I/audio_avrcp bts: get play_status = 2
+
+[269452] I/audio bts: private volume[1]=7
+[269471] I/audio_avrcp bts: << set absolute volume 63 
+
+[270053] I/audio_avrcp bts: avrcp media_attribute 2  req_attr 2
+
+[270081] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[270109] I/audio_avrcp bts: avrcp value_length b
+
+[270140] I/audio_avrcp bts: avrcp attr_cfm reject 0
+
+[270548] I/audio_avrcp bts: avrcp media_attribute 3  req_attr 3
+
+[270575] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[270597] I/audio_avrcp bts: avrcp value_length b
+
+[270875] I/audio_avrcp bts: avrcp media_attribute 1  req_attr 1
+
+[270902] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[270924] I/audio_avrcp bts: avrcp value_length c
+
+[271205] I/audio_avrcp bts: avrcp media_attribute 7  req_attr 7
+
+[271232] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[271253] I/audio_avrcp bts: avrcp value_length 1
+
+[271273] I/audio_avrcp bts: URC BT music detail end 0
+
+[271307] I/audio_avrcp bts:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 1/10, result 268435458
+[306561] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 2/10, result 268435458
+[336779] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 3/10, result 268435458
+[369099] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 4/10, result 268435458
+[400011] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 5/10, result 268435458
+[432070] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 6/10, result 268435458
+[463673] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 7/10, result 268435458
+[497015] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 8/10, result 268435458
+[526676] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 9/10, result 268435458
+[556270] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 10/10, result 268435458
+ sp: 0x20044e60
+psr: 0x21000000
+r00: 0x00000000
+r01: 0xffffffff
+r02: 0x00000000
+r03: 0x4000001c
+r04: 0x2007fb54
+r05: 0x2007aea0
+r06: 0x2007af90
+r07: 0x1241f8d8
+r08: 0x00000000
+r09: 0x00000026
+r10: 0x00000000
+r11: 0x00000007
+r12: 0x00000057
+ lr: 0x122ba1f3
+ pc: 0x1223a4fe
+hard fault on thread: main
+
+=====================
+PSP: 0x0x20044dcc, MSP: 0x0x20001fbc
+===================
+Thread Info        
+===================
+         pri  status      sp      top     stack size max used left tick  error
+-------- ---  ------- ---------- ---------- ----------  ------  ---------- ---
+bts       12  suspend 0x2006b798 0x2006b8a8 0x00000c00    55%   0x00000002 000
+KE_EVT3   10  suspend 0x20069860 0x20069960 0x00000400    46%   0x0000000d 000
+KE_EVT0   25  suspend 0x20069448 0x20069548 0x00000400    25%   0x00000014 000
+KE_EVT2   12  suspend 0x20069030 0x20069130 0x00001000    24%   0x00000002 000
+bt_app    15  suspend 0x20062d88 0x20062e90 0x00000800    40%   0x00000007 000
+compass   26  suspend 0x200528d0 0x20052a68 0x00000800    20%   0x0000000a 000
+wrist_wa  25  suspend 0x2002b188 0x2002b49d 0x00001000    39%   0x00000006 000
+activity  27  suspend 0x20062418 0x20062518 0x00000600    51%   0x00000006 000
+battery   28  suspend 0x20061a40 0x20061b3c 0x00000600    24%   0x0000000a 000
+sdmusic   19  suspend 0x200568c0 0x200569d0 0x00001000    38%   0x00000001 000
+tpread    10  suspend 0x20014de0 0x20014eec 0x00000400    45%   0x00000002 000
+lcd_task  12  suspend 0x20014988 0x20014aec 0x00000800    43%   0x00000001 000
+tf_monit  30  suspend 0x20050a08 0x20050b74 0x00000800    56%   0x00000007 000
+tshell    20  suspend 0x2004efc8 0x2004f148 0x00001000    16%   0x0000000a 000
+deplayba  12  suspend 0x2001ea18 0x2001eb74 0x00000800    17%   0x0000000a 000
+bt_downv  11  suspend 0x2001b638 0x2001b758 0x000007d0    37%   0x00000009 000
+audiosvr  11  suspend 0x2001d9f0 0x2001db58 0x00002400    08%   0x0000000a 000
+tcpip     10  suspend 0x20046180 0x200462a0 0x00001000    07%   0x00000014 000
+etx       12  suspend 0x2003eb10 0x2003ec18 0x00000400    26%   0x0000000f 000
+erx       12  suspend 0x2003e6c0 0x2003e744 0x00000400    13%   0x00000010 000
+tidle     31  ready   0x20034460 0x20034540 0x00000800    13%   0x00000017 000
+timer      4  suspend 0x200151e8 0x200152ec 0x00000400    25%   0x00000008 000
+main      19  ready   0x20044f70 0x2004506c 0x00001800    43%   0x00000002 000
+===================
+Mailbox Info       
+===================
+        entry size suspend thread
+------- ----  ---- --------------
+bt_app  0000  0008 1:bt_app
+mbox0   0000  0048 1:tcpip
+etxmb   0000  0008 1:etx
+erxmb   0000  0008 1:erx
+===================
+MessageQueue Info  
+===================
+         entry suspend thread
+-------- ----  --------------
+sdmusic  0000  1:sdmusic
+drv_lcd  0000  1:lcd_task�
+===================
+Mutex Info         
+===================
+           owner  hold suspend thread
+-------- -------- ---- --------------
+idle_tim (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+fat1     (null)   0000 0
+ble_flas (null)   0000 0
+compass  (null)   0000 0
+watch_se (null)   0000 0
+activity (null)   0000 0
+battery  (null)   0000 0
+ui_mutex (null)   0000 0
+record_o (null)   0000 0
+record   (null)   0000 0
+sdmusic_ (null)   0000 0
+sdmusic  (null)   0000 0
+music    (null)   0000 0
+tplck    (null)   0000 0
+phone_ms (null)   0000 0
+phone_sy (null)   0000 0
+tf_card  (null)   0000 0
+local_au (null)   0000 0
+fat0     (null)   0000 0
+int_stor (null)   0000 0
+audio_sv (null)   0000 0
+rgb_drv  (null)   0000 0
+rtc      (null)   0000 0
+ulog loc (null)   0000 0
+mu0      (null)   0000 0
+fslock   (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+spi1     (null)   0000 0
+===================
+Semaphore Info     
+===================
+         v   suspend thread
+-------- --- --------------
+bt_avrcp 001 0
+bt_av_si 001 0
+bt_av_si 001 0
+bts2_ev  000 1:bts
+KE       000 1:KE_EVT3
+KE       000 1:KE_EVT0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+KE       000 1:KE_EVT2
+sifli    000 0
+compass_ 000 1:compass
+battery_ 000 1:battery
+lv_data  001 0
+tp_ctrl  001 0
+lv_lcd   001 0
+lcd_msg  000 0
+lcd_draw 000 0
+drv_lcd  001 0
+shrx     000 0
+epic     001 0
+audpsram 001 0
+tlspsram 001 0
+ft6146   000 1:tpread
+aes_drv  001 0
+drv_eDma 001 0
+gpadc    001 0
+i2c4     000 0
+i2c3     000 0
+i2c2     000 0
+i2c1     000 0
+spi1     001 0
+heap     001 0
+flash2   001 0
+===================
+Memory Info     
+===================
+total memory: 247488 used memory : 247408 maximum allocated memory: 247408
+===================
+MemoryHeap Info     
+===================
+          pool size  max used size available size
+-------- ---------- ------------- --------------
+audpsram 131072     72            131000
+tlspsram 98304      72            98232
+No such directory
+disk free: 3.4 MB [ 891 block, 4096 bytes per block ] [total block 1018 total size 4169728]
+FPU active!
+mem manage fault:
+SCB_CFSR_MFSR:0x82 DACCVIOL SCB->MMAR:00000070
+SFBL
+Serial:c2,Chip:4,Package:3,Rev:3  Reason:00000000
+Serial PowerOnMOde:0 rtc_record:00000000
+
+ \ | /
+- SiFli Corporation
+ / | \     build on Sep  7 2026, 2.5.0 build 38a62371
+ 2020 - 2022 Copyright by SiFli team
+aw32001_init ok,  time consum: 0.00 ms.
+mount /dev sucess
+lwIP-2.1.2 initialized!
+[BUS]spi1 probe sdcard...
+[MSD] 8 [info] SD card goto IDLE mode OK!
+[MSD] 9 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 10 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 11 SD_V2: READ_OCR
+[MSD] 12 response:1,0,ff,80
+[MSD] 12 [info] OCR is 0x00FF8000
+[MSD] 119 SD_V2 again: READ_OCR
+[MSD] 120 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 120 [info] It is SD2.0 SDHC Card!!!
+[MSD] 122 [info] CSD Version 2.0
+[MSD] 123 [info] CSD : C_SIZE : 15359
+[MSD] 123 [info] card capacity : 7.50 Gbyte
+[MSD] 124 [info] sector_count : 15728640
+[MSD] 124 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+[SD]msd init ok
+find sd0 ok ! 0x2003eff0
+[6478] I/drv.rtc main: PSCLR=0x80000100 DivAI=128 DivAF=0 B=256
+[6503] I/drv.rtc main: RTC use LXT RTC_CR=00000001
+
+[6524] I/drv.rtc main: Init RTC, wake = 0
+
+[6685] I/drv.audprc main: init 00 ADC_PATH_CFG0 0x606
+
+[6706] I/drv.audprc main: HAL_AUDPRC_Init res 0
+
+[6727] I/drv.audcodec main: HAL_AUDCODEC_Init res 0
+
+[6749] I/drv.rgb main: rgbled register success, supporting 1 LEDs
+[6775] I/TOUCH main: Regist touch screen driver, probe=0x12222649 
+[I/FAL] Flash Abstraction Layer (V0.5.99) initialize success.
+[I/FAL] The FAL MTD NOR device (dfu) created successfully
+[I/FAL] The FAL MTD NOR device (ble) created successfully
+call par CFG1(3313)
+fc 9, xtal 2000, pll 2141
+call par CFG1(3313)
+fc 7, xtal 2000, pll 1717
+ota_tls: PSRAM pool ready, 98304 bytes
+audio_mem: PSRAM pool ready, 131072 bytes
+[7079] I/audio audiosvr: audio server run
+[7098] I/audio bt_downv: audio_btdownlink run
+cwm_enable_gesture 0 1 0
+msh />Register musicfs to mtd device with base addr 0x129a0000
+storage: filesystem mounted at /
+RTC use LXT RTC_CR=00000001
+RTC Init success.
+SET RTC TIME : Wed Jan  1 08:30:00 2025
+RGB LED driver device [rgbled] found and initialized.
+[11030] I/drv.lcd main: [NONE] -> [OPENING]
+[11050] I/drv.lcd lcd_task: open
+[11064] I/drv.epic lcd_task: drv_gpu opened.
+[11081] I/drv.lcd lcd_task: HW open
+[11117] I/drv.lcd lcd_task: Try registered LCD driver...
+
+CO5300_ReadID 0x331100 
+[13439] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+
+CO5300_ReadID 0x331100 
+[19719] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+[19740] I/drv.lcd lcd_task: Found lcd co5300 id:331100h
+[19762] I/drv.lcd lcd_task: HW open done.
+[19778] I/drv.lcd lcd_task: [OPENING] -> [INITIALIZED]
+[19799] I/drv.lcd lcd_task: open done.
+[19819] I/drv.lcd_fb main: drv_lcd_fb_init
+[19839] I/drv.lcd_fb main: drv_lcd_fb_init done.
+[19949] I/TOUCH main: Open
+[19967] I/TOUCH tp_init: Find touch screen driver...
+[19987] I/TOUCH tp_init: Probe 12222649
+[20006] I/TOUCH tp_init: touch screen found driver  0x20017f00, ft6146
+[20034] I/TOUCH main: Opened.
+[20048] I/LVGL main: [littlevgl2rtt] Welcome to the littlevgl2rtt lib.
+[22808] E/drv.ft6146 tp_init: ft6146 id_H=64
+[22835] E/drv.ft6146 tp_init: ft6146 id_L=56
+UI mutex initialized!
+LVGL time update timer created successfully!
+alarm: loaded 1 alarm(s)
+[33168] I/sensor main: rt_sensor init success
+[33188] I/sensor main: rt_sensor init success
+[33207] I/sensor main: rt_sensor init success
+[33282] I/sensor.st.lsm6dsl main: sensor init success
+activity: hardware step counter enabled
+[33598] I/drv.lcd lcd_task: set brightness 100
+[33620] I/drv.lcd lcd_task: display on
+[33636] I/drv.lcd lcd_task: [INITIALIZED] -> [ON]
+[33658] I/audio main: private volume[1]=5
+[33676] I/audio main: spk mute=0
+MMC56x3 ID = 16
+[34437] I/sensor main: rt_sensor init success
+[34456] I/sensor.mmc56x3 main: mag sensor init success
+compass: MMC56X3 enabled on i2c3
+[34595] I/nvds mbox: read sleep time 3500
+[71105] I/sibles bt_app: enable BLE Core. Lib ver: bt.2.0.7f55268b
+[MSD] 2145 [info] SD card goto IDLE mode OK!
+[MSD] 2146 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 2147 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 2148 SD_V2: READ_OCR
+[MSD] 2149 response:1,40,ff,80
+[MSD] 2149 [info] OCR is 0x40FF8000
+[MSD] 2160 SD_V2 again: READ_OCR
+[MSD] 2161 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 2162 [info] It is SD2.0 SDHC Card!!!
+[MSD] 2164 [info] CSD Version 2.0
+[MSD] 2164 [info] CSD : C_SIZE : 15359
+[MSD] 2165 [info] card capacity : 7.50 Gbyte
+[MSD] 2165 [info] sector_count : 15728640
+[MSD] 2166 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+tf_card: TF card mounted at /tf, generation=2
+[103987] I/nvds mbox: hci en 32
+
+######################################################
+##                                                  ##
+##           BTS2 Demo Main Menu                    ##
+##   1. Generic Command                             ##
+##   6. A2DP Sink                                   ##
+##   8. L2CAP bqb test                              ##
+##   h. PAN                                         ##
+##   p. AVRCP                                       ##
+##   z. hid                                         ##
+##   s. Show Menu                                   ##
+##   q. Exit                                        ##
+##                                                  ##
+######################################################
+
+[104475] I/ble_cm mbox: read_bond_infor_from_flash: 0
+le p256 nvds get 0
+le p256 nvds get 0
+app addr nvds get 1
+[104980] I/sibles KE_EVT2: 
+BLE ready!
+
+[104999] I/btcomm KE_EVT2: Clear mask 1
+act num:0
+set cmd 0x91, stop_status:0, msg_status:1
+[122032] I/btapp_pan bts: >> PAN enable
+
+[122051] I/btapp_pan bts: >> PAN register successful
+
+[122141] I/btapp_ge bts: << Local device addreess: 5CFD:52:800803
+
+[122237] I/btapp.av bts: enable(1) ret 0
+[122708] I/btapp_ge bts: << Write eir data success!
+
+[122743] I/audio_avrcp bts: >> AVCTP enabled
+
+[122794] I/btsapp_hid bts: >> HID enabled
+
+[122963] I/btapp_ge bts: << Local LMP version: 12
+
+[122985] I/btapp_ge bts: << Local LMP subversion: 591
+
+[123007] I/btapp_ge bts: << Local controller manufacturer name id: 2636
+
+[123122] I/btapp_pan bts: >> PAN enable success
+
+lwip system already init.
+[123153] I/BT.lwip bts: lwip:enter register_eth 537128564  537128552
+
+[123209] I/BT.lwip bts: eth device init ok name:b0
+[123353] I/btapp_ge bts: << Local device name changed!
+
+[123420] I/btapp_ge bts: << Class of device has been changed!
+
+[123544] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[123566] I/btcomm bts: Clear mask 2
+[123581] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[123608] I/NO_TAG bts: profile 2 connect
+[123625] I/btapp.av bts:  -- av conn rmt device... peer_role:0 local_role:1
+
+[123654] I/btapp.av bts:  -- address: 7CA4:49:2FF552
+
+[123677] I/NO_TAG bts: >> av snk connect
+
+[123693] I/NO_TAG bts: Reconnect ret 0 link_type 0x 1
+[123716] I/btapp_ge bts: << Local device name: SifliDemo-3-8-80-52-fd-5c
+
+[123749] I/btapp_ge bts: service state 1
+[123780] I/sibles KE_EVT2: status=0, start_handle=0xe
+[123811] I/sibles KE_EVT2: status=0, start_handle=0x12
+[123839] I/btapp_ge bts: bt stack ready
+
+con_id = 3
+[123905] I/btapp_ge bts: << Class of device: 0x65020300
+
+[123996] I/NO_TAG bt_app: BT/BLE stack and profile ready
+[124091] I/btapp_ge bts: << Write scan enable success
+
+[124133] I/NO_TAG KE_EVT2: Sibles ADV start 0!
+
+[124165] I/btapp_intf bt_app: set name     铠甲勇士召唤器
+
+[124235] I/NO_TAG bts: DM_ACL_CREATE_CONN_STATUS
+[124273] I/NO_TAG KE_EVT2: HSP companion advertising started: 0
+[124322] I/btapp_ge bts: << Local device name changed!
+
+[124393] I/btapp_ge bts: << Scan mode: 0
+
+[124412] I/btapp_ge bts: <<            No scans enbd.
+
+[124527] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[124548] I/btcomm bts: Clear mask 2
+[124563] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[124589] I/btapp_ge bts: << Local device name: 铠甲勇士召唤器
+
+[124616] I/btapp_ge bts: service state 2
+[124679] I/btapp_ge bts: << Write eir data success!
+
+[299742] I/NO_TAG bts: link connected COD:0 Incoming:0 hdl 128 res 0
+
+[299781] I/NO_TAG bts: bd addr 7ca4-49-2ff552
+
+[300015] I/btapp_ge bts: device address: 7CA4:49:2FF552
+[300040] I/btapp_ge bts:     role: slave
+
+[300106] I/btapp_ge bts: << Write scan enable success
+
+[300169] I/btapp_ge bts: res = 0,page_num = 1,max_page_num = 2
+
+[300201] I/btapp_ge bts: ext_lmp_featr[0] = 0xb,ext_lmp_featr[1] = 0x0,ext_lmp_featr[2] = 0x0,ext_lmp_featr[3] = 0x0
+
+[300281] I/btapp_ge bts: << Scan mode: 0
+
+[300300] I/btapp_ge bts: <<            No scans enbd.
+
+[301427] I/btapp_ge bts: BTS2MU_GAP_ENCRYPTION_IND
+[301455] I/NO_TAG bts: Encryption competed
+[301473] I/NO_TAG bts: bd addr 0x7c:a4:49:2f:f5:52
+
+[302160] I/btapp.av bts: << (d0)av connect success,cfg = 1
+
+[304564] I/NO_TAG bts: profile 8 connect
+[304584] I/btsapp_hid bts:  -- address: 7CA4:49:2FF552
+
+[306762] I/btsapp_hid bts: [L-U]HID connect success
+
+[306789] I/NO_TAG bts: HID connected
+
+[306805] I/btapp_pan bts:  pan st 0
+
+[306822] I/btapp_pan bts: >> PAN connect
+
+[307510] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 1/10, result 268435460
+[310067] I/btapp_pan bts: << PAN local device addreess: 5CFD:52:800803, result=0
+
+[310122] I/NO_TAG bts: pan connect successed 
+
+[310145] I/btapp_pan bts:  BTS2MU_PAN_CONN_IND
+
+[312779] I/NO_TAG bts: pan disconnect with remote device
+
+[337097] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 2/10, result 268435460
+[366689] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 3/10, result 268435460
+[396277] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 4/10, result 268435460
+[NTP] PAN disconnected. Stop retrying.
+[425864] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 5/10, result 268435460
+[431415] I/audio_avrcp bts: << avrcp indicate to connect with remote device
+
+music: AVRCP connected
+[432405] I/audio_avrcp bts: << register notificaiton volume changed 20
+
+[433444] I/audio_avrcp bts: get play_status = 2
+
+[434323] I/audio bts: private volume[1]=7
+[434343] I/audio_avrcp bts: << set absolute volume 63 
+
+[437232] I/audio_avrcp bts: avrcp media_attribute 2  req_attr 2
+
+[437267] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[437289] I/audio_avrcp bts: avrcp value_length b
+
+[437331] I/audio_avrcp bts: avrcp attr_cfm reject 0
+
+[439362] I/audio_avrcp bts: avrcp media_attribute 3  req_attr 3
+
+[439390] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[439412] I/audio_avrcp bts: avrcp value_length b
+
+[441328] I/audio_avrcp bts: avrcp media_attribute 1  req_attr 1
+
+[441356] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[441378] I/audio_avrcp bts: avrcp value_length c
+
+[443375] I/audio_avrcp bts: avrcp media_attribute 7  req_attr 7
+
+[443402] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[443424] I/audio_avrcp bts: avrcp value_length 1
+
+[443445] I/audio_avrcp bts: URC BT music detail end 0
+
+[443482] I/audio_avrcp bts:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 1/10, result 268435458
+[475329] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 2/10, result 268435458
+[504971] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 3/10, result 268435458
+[534610] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 4/10, result 268435458
+[564188] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 5/10, result 268435458
+[593777] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 6/10, result 268435458
+[623831] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 7/10, result 268435458
+[653615] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 8/10, result 268435458
+[683926] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 9/10, result 268435458
+[713518] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 10/10, result 268435458
+Assertion failed at function:lv_obj_allocate_spec_attr, line number:347 ,(0)
+Previous ISR enable 0
+===================
+Thread Info        
+===================
+         pri  status      sp      top     stack size max used left tick  error
+-------- ---  ------- ---------- ---------- ----------  ------  ---------- ---
+bts       12  suspend 0x2006b798 0x2006b8a8 0x00000c00    54%   0x00000008 000
+KE_EVT3   10  suspend 0x20069860 0x20069960 0x00000400    44%   0x0000000f 000
+KE_EVT0   25  suspend 0x20069448 0x20069548 0x00000400    25%   0x00000014 000
+KE_EVT2   12  suspend 0x20069030 0x20069130 0x00001000    24%   0x00000007 000
+bt_app    15  suspend 0x20062d88 0x20062e90 0x00000800    40%   0x00000007 000
+compass   26  suspend 0x200528d0 0x20052a68 0x00000800    20%   0x0000000a 000
+wrist_wa  25  suspend 0x2002b188 0x2002b49d 0x00001000    39%   0x0000000a 000
+activity  27  ready   0x20062418 0x20062518 0x00000600    42%   0x00000006 -02
+battery   28  suspend 0x20061a40 0x20061b3c 0x00000600    24%   0x00000009 000
+sdmusic   19  suspend 0x200568c0 0x200569d0 0x00001000    38%   0x00000002 000
+tpread    10  suspend 0x20014de0 0x20014eec 0x00000400    45%   0x00000005 000
+lcd_task  12  suspend 0x20014988 0x20014aec 0x00000800    43%   0x00000003 000
+tf_monit  30  suspend 0x20050a08 0x20050b74 0x00000800    60%   0x00000006 000
+tshell    20  suspend 0x2004efc8 0x2004f148 0x00001000    16%   0x0000000a 000
+deplayba  12  suspend 0x2001ea18 0x2001eb74 0x00000800    17%   0x0000000a 000
+bt_downv  11  suspend 0x2001b638 0x2001b758 0x000007d0    37%   0x0000000a 000
+audiosvr  11  suspend 0x2001d9f0 0x2001db58 0x00002400    08%   0x00000009 000
+tcpip     10  suspend 0x20046180 0x200462a0 0x00001000    07%   0x00000014 000
+etx       12  suspend 0x2003eb10 0x2003ec18 0x00000400    26%   0x00000010 000
+erx       12  suspend 0x2003e6c0 0x2003e744 0x00000400    13%   0x00000010 000
+tidle     31  ready   0x20034460 0x20034540 0x00000800    12%   0x00000007 000
+timer      4  suspend 0x200151e8 0x200152ec 0x00000400    25%   0x00000009 000
+main      19  ready   0x20044df0 0x2004506c 0x00001800    45%   0x00000010 000
+===================
+Mailbox Info       
+===================
+        entry size suspend thread
+------- ----  ---- --------------
+bt_app  0000  0008 1:bt_app
+mbox0   0000  0048 1:tcpip
+etxmb   0000  0008 1:etx
+erxmb   0000  0008 1:erx
+===================
+MessageQueue Info  
+===================
+         entry suspend thread
+-------- ----  --------------
+sdmusic  0000  1:sdmusic
+drv_lcd  0000  1:lcd_task�
+===================
+Mutex Info         
+===================
+           owner  hold suspend thread
+-------- -------- ---- --------------
+idle_tim (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+bts2_mu  (null)   0000 0
+fat1     (null)   0000 0
+ble_flas (null)   0000 0
+compass  (null)   0000 0
+watch_se (null)   0000 0
+activity (null)   0000 0
+battery  (null)   0000 0
+ui_mutex (null)   0000 0
+record_o (null)   0000 0
+record   (null)   0000 0
+sdmusic_ (null)   0000 0
+sdmusic  (null)   0000 0
+music    (null)   0000 0
+tplck    (null)   0000 0
+phone_ms (null)   0000 0
+phone_sy (null)   0000 0
+tf_card  (null)   0000 0
+local_au (null)   0000 0
+fat0     (null)   0000 0
+int_stor (null)   0000 0
+audio_sv (null)   0000 0
+rgb_drv  (null)   0000 0
+rtc      (null)   0000 0
+ulog loc (null)   0000 0
+mu0      (null)   0000 0
+fslock   (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+i2c_bus_ (null)   0000 0
+spi1     (null)   0000 0
+===================
+Semaphore Info     
+===================
+         v   suspend thread
+-------- --- --------------
+bt_avrcp 001 0
+bt_av_si 001 0
+bt_av_si 001 0
+bts2_ev  000 1:bts
+KE       000 1:KE_EVT3
+KE       000 1:KE_EVT0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+ke_mem_e 001 0
+KE       000 1:KE_EVT2
+sifli    000 0
+compass_ 000 1:compass
+battery_ 000 1:battery
+lv_data  001 0
+tp_ctrl  001 0
+lv_lcd   001 0
+lcd_msg  000 0
+lcd_draw 000 0
+drv_lcd  001 0
+shrx     000 0
+epic     001 0
+audpsram 001 0
+tlspsram 001 0
+ft6146   000 1:tpread
+aes_drv  001 0
+drv_eDma 001 0
+gpadc    001 0
+i2c4     000 0
+i2c3     000 0
+i2c2     000 0
+i2c1     000 0
+spi1     001 0
+heap     001 0
+flash2   001 0
+===================
+Memory Info     
+===================
+total memory: 247488 used memory : 247464 maximum allocated memory: 247464
+===================
+MemoryHeap Info     
+===================
+          pool size  max used size available size
+-------- ---------- ------------- --------------
+audpsram 131072     72            131000
+tlspsram 98304      72            98232
+No such directory
+disk free: 3.4 MB [ 891 block, 4096 bytes per block ] [total block 1018 total size 4169728]
+=====================
+PSP: 0x0x20044e54, MSP: 0x0x20001fe0
+=====================
+ sp: 0x20044eb8
+psr: 0x40000000
+r00: 0x00000000
+r01: 0x00000017
+r02: 0x000002c6
+r03: 0x30000000
+r12: 0x122d9cad
+ lr: 0x122bc2e5
+ pc: 0x122bc2e5
+=====================
+fatal error on thread: main

@@ -1,4 +1,5 @@
 #include "water_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -138,10 +139,11 @@ static void water_ui_async_refresh(void *user_data)
 
 static void water_ui_schedule_refresh(void)
 {
-    if (!water_refresh_queued)
+    if (ui_Water != NULL && !water_refresh_queued)
     {
         water_refresh_queued = 1U;
-        lv_async_call(water_ui_async_refresh, NULL);
+        if (lv_async_call(water_ui_async_refresh, NULL) != LV_RES_OK)
+            water_refresh_queued = 0U;
     }
 }
 
@@ -628,6 +630,7 @@ void ui_Water_screen_init(void)
     if (ui_Water != NULL)
         return;
     ui_Water = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Water, ui_Water_screen_destroy);
     ui_swipe_back_register(ui_Water, ui_Water_return);
     lv_obj_clear_flag(ui_Water, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Water, lv_color_hex(WATER_BG), LV_PART_MAIN);
@@ -637,6 +640,10 @@ void ui_Water_screen_init(void)
 
 void ui_Water_screen_destroy(void)
 {
+    lv_async_call_cancel(water_ui_async_refresh, NULL);
+    lv_async_call_cancel(water_ui_finish_async, NULL);
+    water_refresh_queued = 0U;
+    water_finish_queued = 0U;
     if (ui_Water != NULL)
         lv_obj_del(ui_Water);
     ui_Water = NULL;

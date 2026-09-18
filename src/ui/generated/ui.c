@@ -26,22 +26,21 @@ lv_obj_t * ui____initial_actions0;
 #endif
 
 ///////////////////// ANIMATIONS ////////////////////
+static void ui_muyu_set_zoom(void *target, int32_t zoom)
+{
+    lv_img_set_zoom(target, (uint16_t)zoom);
+}
+
 lv_anim_t * ui_muyu_press_animation(lv_obj_t *target, int delay)
 {
     lv_anim_t animation;
-    ui_anim_user_data_t *animation_user_data =
-        lv_mem_alloc(sizeof(ui_anim_user_data_t));
-
-    animation_user_data->target = target;
-    animation_user_data->val = -1;
     lv_anim_init(&animation);
     lv_anim_set_time(&animation, 80);
-    lv_anim_set_user_data(&animation, animation_user_data);
-    lv_anim_set_custom_exec_cb(&animation, _ui_anim_callback_set_image_zoom);
+    lv_anim_set_var(&animation, target);
+    lv_anim_set_exec_cb(&animation, ui_muyu_set_zoom);
     lv_anim_set_values(&animation, 256, 220);
     lv_anim_set_path_cb(&animation, lv_anim_path_linear);
     lv_anim_set_delay(&animation, delay);
-    lv_anim_set_deleted_cb(&animation, _ui_anim_callback_free_user_data);
     lv_anim_set_playback_time(&animation, 120);
     lv_anim_set_playback_delay(&animation, 0);
     lv_anim_set_repeat_count(&animation, 0);
@@ -148,15 +147,11 @@ void ui_init(void)
                                                false, LV_FONT_DEFAULT);
     lv_disp_set_theme(dispp, theme);
     ui_ScreenHome_screen_init();
-    ui_RgbLight_screen_init();
-    ui_Muyu_screen_init();
     ui_ScreenMusic_screen_init();
     ui_Alarm_init();
-    ui_Calendar_init();
     ui_Water_init();
     ui_Tomato_init();
     ui_Camera_init();
-    ui_TfFileManager_screen_init();
     ui_Record_init();
     app_grid_set_app_open_handler(ui_app_grid_open);
     home_gestures_init();

@@ -1,4 +1,5 @@
 #include "tomato_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -654,7 +655,7 @@ static void tomato_ui_async_refresh(void *user_data)
 static void tomato_ui_service_event(tomato_event_t event)
 {
     (void)event;
-    if (tomato_refresh_queued)
+    if (ui_Tomato == NULL || tomato_refresh_queued)
         return;
     tomato_refresh_queued = 1U;
     if (lv_async_call(tomato_ui_async_refresh, NULL) != LV_RES_OK)
@@ -672,8 +673,6 @@ static void tomato_ui_timer_cb(lv_timer_t *timer)
 void ui_Tomato_init(void)
 {
     tomato_service_set_event_handler(tomato_ui_service_event);
-    if (tomato_ui_timer == NULL)
-        tomato_ui_timer = lv_timer_create(tomato_ui_timer_cb, 250U, NULL);
 }
 
 void ui_Tomato_screen_init(void)
@@ -681,7 +680,9 @@ void ui_Tomato_screen_init(void)
     if (ui_Tomato != NULL)
         return;
 
+    tomato_ui_timer = lv_timer_create(tomato_ui_timer_cb, 250U, NULL);
     ui_Tomato = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Tomato, ui_Tomato_screen_destroy);
     ui_swipe_back_register(ui_Tomato, ui_Tomato_return);
     lv_obj_clear_flag(ui_Tomato, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Tomato, lv_color_hex(TOMATO_BG),
@@ -692,6 +693,13 @@ void ui_Tomato_screen_init(void)
 
 void ui_Tomato_screen_destroy(void)
 {
+    lv_async_call_cancel(tomato_ui_async_state, NULL);
+    lv_async_call_cancel(tomato_ui_async_refresh, NULL);
+    tomato_state_queued = 0U;
+    tomato_refresh_queued = 0U;
+    if (tomato_ui_timer != NULL)
+        lv_timer_del(tomato_ui_timer);
+    tomato_ui_timer = NULL;
     if (ui_Tomato != NULL)
         lv_obj_del(ui_Tomato);
     ui_Tomato = NULL;

@@ -1,4 +1,5 @@
 #include "activity_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 
@@ -206,6 +207,7 @@ void ui_Activity_screen_init(void)
         return;
 
     ui_Activity = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Activity, ui_Activity_screen_destroy);
     ui_swipe_back_register(ui_Activity, ui_Activity_return);
     activity_ui_style_plain(ui_Activity, ACTIVITY_UI_BG, LV_OPA_COVER, 0);
     lv_obj_add_event_cb(ui_Activity, activity_ui_screen_event,
@@ -281,14 +283,8 @@ void ui_Activity_open_from_app_grid(void)
 
 void ui_Activity_return(void)
 {
-    lv_obj_t *screen = ui_Activity;
-
     activity_ui_wait_release();
     if (activity_refresh_timer != NULL)
         lv_timer_pause(activity_refresh_timer);
-    if (screen != NULL)
-        lv_obj_add_event_cb(screen, scr_unloaded_delete_cb,
-                            LV_EVENT_SCREEN_UNLOADED,
-                            ui_Activity_screen_destroy);
     ui_AppGrid_open();
 }

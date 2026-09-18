@@ -4,6 +4,7 @@
 // Project name: SquareLine_Project
 
 #include "../ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 lv_obj_t * ui_Muyu = NULL;
 lv_obj_t * ui_MuyuPanel = NULL;
@@ -66,6 +67,7 @@ void ui_event_MuyuImage(lv_event_t * e)
 void ui_Muyu_screen_init(void)
 {
     ui_Muyu = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Muyu, ui_Muyu_screen_destroy);
     lv_obj_clear_flag(ui_Muyu, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_MuyuPanel = lv_obj_create(ui_Muyu);

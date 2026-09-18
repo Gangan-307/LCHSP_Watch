@@ -1,4 +1,5 @@
 #include "alarm_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -221,10 +222,11 @@ static void alarm_ui_async_refresh(void *user_data)
 
 static void alarm_ui_schedule_refresh(void)
 {
-    if (refresh_queued)
+    if (ui_Alarm == NULL || refresh_queued)
         return;
     refresh_queued = 1U;
-    lv_async_call(alarm_ui_async_refresh, NULL);
+    if (lv_async_call(alarm_ui_async_refresh, NULL) != LV_RES_OK)
+        refresh_queued = 0U;
 }
 
 static void alarm_ui_switch_event(lv_event_t *event)
@@ -932,6 +934,7 @@ void ui_Alarm_screen_init(void)
         return;
 
     ui_Alarm = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Alarm, ui_Alarm_screen_destroy);
     ui_swipe_back_register(ui_Alarm, ui_Alarm_return);
     lv_obj_clear_flag(ui_Alarm, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Alarm, lv_color_hex(ALARM_BG),
@@ -943,6 +946,8 @@ void ui_Alarm_screen_init(void)
 
 void ui_Alarm_screen_destroy(void)
 {
+    lv_async_call_cancel(alarm_ui_async_refresh, NULL);
+    refresh_queued = 0U;
     if (ui_Alarm != NULL)
         lv_obj_del(ui_Alarm);
     ui_Alarm = NULL;

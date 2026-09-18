@@ -1,4 +1,5 @@
 #include "tf_file_manager_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -510,6 +511,7 @@ void ui_TfFileManager_screen_init(void)
         return;
 
     ui_TfFileManager = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_TfFileManager, ui_TfFileManager_screen_destroy);
     ui_swipe_back_register(ui_TfFileManager, ui_TfFileManager_return);
     lv_obj_clear_flag(ui_TfFileManager, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_TfFileManager, lv_color_hex(TF_FM_BG),

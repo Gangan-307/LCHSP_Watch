@@ -1,4 +1,5 @@
 #include "ui_WeatherDetails.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include "rtthread.h"
 #include "services/phone_sync.h"
@@ -416,6 +417,7 @@ void ui_WeatherDetails_screen_init(void)
     lv_obj_t *divider;
 
     ui_WeatherDetails = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_WeatherDetails, ui_WeatherDetails_screen_destroy);
     lv_obj_clear_flag(ui_WeatherDetails, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_WeatherDetails, lv_color_hex(0x000000),
                               LV_PART_MAIN | LV_STATE_DEFAULT);

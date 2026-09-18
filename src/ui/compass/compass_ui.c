@@ -1,4 +1,5 @@
 #include "compass_ui.h"
+#include "ui/generated/ui_screen_lifecycle.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -356,6 +357,7 @@ void ui_Compass_screen_init(void)
         return;
 
     ui_Compass = lv_obj_create(NULL);
+    ui_screen_release_on_unload(ui_Compass, ui_Compass_screen_destroy);
     ui_swipe_back_register(ui_Compass, ui_Compass_return);
     lv_obj_clear_flag(ui_Compass, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(ui_Compass, lv_color_hex(COMPASS_BG),
