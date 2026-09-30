@@ -1,0 +1,339 @@
+SFBL
+Serial:c2,Chip:4,Package:3,Rev:3  Reason:00000000
+Serial PowerOnMOde:0 rtc_record:00000000
+
+ \ | /
+- SiFli Corporation
+ / | \     build on Sep  7 2026, 2.5.0 build 38a62371
+ 2020 - 2022 Copyright by SiFli team
+aw32001_init ok,  time consum: 0.00 ms.
+mount /dev sucess
+lwIP-2.1.2 initialized!
+[BUS]spi1 probe sdcard...
+[MSD] 9 [info] SD card goto IDLE mode OK!
+[MSD] 10 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 10 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 11 SD_V2: READ_OCR
+[MSD] 12 response:1,0,ff,80
+[MSD] 12 [info] OCR is 0x00FF8000
+[MSD] 169 SD_V2 again: READ_OCR
+[MSD] 170 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 170 [info] It is SD2.0 SDHC Card!!!
+[MSD] 172 [info] CSD Version 2.0
+[MSD] 172 [info] CSD : C_SIZE : 15359
+[MSD] 173 [info] card capacity : 7.50 Gbyte
+[MSD] 173 [info] sector_count : 15728640
+[MSD] 174 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+[SD]msd init ok
+find sd0 ok ! 0x2003eff0
+[7063] I/drv.rtc main: PSCLR=0x80000100 DivAI=128 DivAF=0 B=256
+[7089] I/drv.rtc main: RTC use LXT RTC_CR=00000001
+
+[7110] I/drv.rtc main: Init RTC, wake = 0
+
+[7272] I/drv.audprc main: init 00 ADC_PATH_CFG0 0x606
+
+[7294] I/drv.audprc main: HAL_AUDPRC_Init res 0
+
+[7315] I/drv.audcodec main: HAL_AUDCODEC_Init res 0
+
+[7337] I/drv.rgb main: rgbled register success, supporting 1 LEDs
+[7362] I/TOUCH main: Regist touch screen driver, probe=0x12222649 
+[I/FAL] Flash Abstraction Layer (V0.5.99) initialize success.
+[I/FAL] The FAL MTD NOR device (dfu) created successfully
+[I/FAL] The FAL MTD NOR device (ble) created successfully
+call par CFG1(3313)
+fc 9, xtal 2000, pll 2141
+call par CFG1(3313)
+fc 7, xtal 2000, pll 1717
+ota_tls: PSRAM pool ready, 98304 bytes
+audio_mem: PSRAM pool ready, 131072 bytes
+[7667] I/audio audiosvr: audio server run
+[7685] I/audio bt_downv: audio_btdownlink run
+cwm_enable_gesture 0 1 0
+msh />Register musicfs to mtd device with base addr 0x129a0000
+storage: filesystem mounted at /
+RTC use LXT RTC_CR=00000001
+RTC Init success.
+SET RTC TIME : Wed Jan  1 08:30:00 2025
+RGB LED driver device [rgbled] found and initialized.
+[11588] I/drv.lcd main: [NONE] -> [OPENING]
+[11608] I/drv.lcd lcd_task: open
+[11622] I/drv.epic lcd_task: drv_gpu opened.
+[11640] I/drv.lcd lcd_task: HW open
+[11675] I/drv.lcd lcd_task: Try registered LCD driver...
+
+CO5300_ReadID 0x331100 
+[13997] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+
+CO5300_ReadID 0x331100 
+[20278] I/co5300 lcd_task: LCD module use CO5300 IC 
+
+[20299] I/drv.lcd lcd_task: Found lcd co5300 id:331100h
+[20321] I/drv.lcd lcd_task: HW open done.
+[20337] I/drv.lcd lcd_task: [OPENING] -> [INITIALIZED]
+[20358] I/drv.lcd lcd_task: open done.
+[20377] I/drv.lcd_fb main: drv_lcd_fb_init
+[20397] I/drv.lcd_fb main: drv_lcd_fb_init done.
+[20508] I/TOUCH main: Open
+[20525] I/TOUCH tp_init: Find touch screen driver...
+[20545] I/TOUCH tp_init: Probe 12222649
+[20564] I/TOUCH tp_init: touch screen found driver  0x20017f20, ft6146
+[20592] I/TOUCH main: Opened.
+[20606] I/LVGL main: [littlevgl2rtt] Welcome to the littlevgl2rtt lib.
+UI mutex initialized!
+LVGL time update timer created successfully!
+[23369] E/drv.ft6146 tp_init: ft6146 id_H=64
+[23393] E/drv.ft6146 tp_init: ft6146 id_L=56
+alarm: loaded 1 alarm(s)
+[32643] I/sensor main: rt_sensor init success
+[32664] I/sensor main: rt_sensor init success
+[32684] I/sensor main: rt_sensor init success
+[32758] I/sensor.st.lsm6dsl main: sensor init success
+activity: hardware step counter enabled
+[33084] I/drv.lcd lcd_task: set brightness 100
+[33106] I/drv.lcd lcd_task: display on
+[33121] I/drv.lcd lcd_task: [INITIALIZED] -> [ON]
+[33143] I/audio main: private volume[1]=5
+[33160] I/audio main: spk mute=0
+MMC56x3 ID = 16
+[33915] I/sensor main: rt_sensor init success
+[33933] I/sensor.mmc56x3 main: mag sensor init success
+compass: MMC56X3 enabled on i2c3
+[34067] I/nvds mbox: read sleep time 3500
+[70537] I/sibles bt_app: enable BLE Core. Lib ver: bt.2.0.7f55268b
+[MSD] 2159 [info] SD card goto IDLE mode OK!
+[MSD] 2160 [info] CMD8 response : 0x01 0xF0 0x00 0x01 0xAA
+[MSD] 2161 [info] Ver2.00 or later or SDHC or SDXC memory card!
+[MSD] 2162 SD_V2: READ_OCR
+[MSD] 2163 response:1,40,ff,80
+[MSD] 2163 [info] OCR is 0x40FF8000
+[MSD] 2174 SD_V2 again: READ_OCR
+[MSD] 2175 [info] OCR 2nd read is 0xC0FF8000
+[MSD] 2175 [info] It is SD2.0 SDHC Card!!!
+[MSD] 2177 [info] CSD Version 2.0
+[MSD] 2178 [info] CSD : C_SIZE : 15359
+[MSD] 2178 [info] card capacity : 7.50 Gbyte
+[MSD] 2179 [info] sector_count : 15728640
+[MSD] 2179 [info] TRAN_SPEED=0x32 -> card_cap_hz=25000000 Hz
+tf_card: TF card mounted at /tf, generation=2
+[103415] I/nvds mbox: hci en 32
+
+######################################################
+##                                                  ##
+##           BTS2 Demo Main Menu                    ##
+##   1. Generic Command                             ##
+##   6. A2DP Sink                                   ##
+##   8. L2CAP bqb test                              ##
+##   h. PAN                                         ##
+##   p. AVRCP                                       ##
+##   z. hid                                         ##
+##   s. Show Menu                                   ##
+##   q. Exit                                        ##
+##                                                  ##
+######################################################
+
+[103880] I/ble_cm mbox: read_bond_infor_from_flash: 0
+le p256 nvds get 0
+le p256 nvds get 0
+app addr nvds get 1
+[104386] I/sibles KE_EVT2: 
+BLE ready!
+
+[104406] I/btcomm KE_EVT2: Clear mask 1
+act num:0
+set cmd 0x91, stop_status:0, msg_status:1
+[121046] I/btapp_ge bts: << Local device addreess: 5CFD:52:800803
+
+[121110] I/btapp_pan bts: >> PAN enable
+
+[121127] I/btapp_pan bts: >> PAN register successful
+
+[121631] I/btapp.av bts: enable(1) ret 0
+[121665] I/audio_avrcp bts: >> AVCTP enabled
+
+[121709] I/btsapp_hid bts: >> HID enabled
+
+[121770] I/btapp_ge bts: << Write eir data success!
+
+[121823] I/btapp_ge bts: << Local LMP version: 12
+
+[121844] I/btapp_ge bts: << Local LMP subversion: 591
+
+[121865] I/btapp_ge bts: << Local controller manufacturer name id: 2636
+
+[122055] I/btapp_pan bts: >> PAN enable success
+
+lwip system already init.
+[122097] I/BT.lwip bts: lwip:enter register_eth 537128564  537128552
+
+[122142] I/BT.lwip bts: eth device init ok name:b0
+[122179] I/btapp_ge bts: << Local device name changed!
+
+[122287] I/btapp_ge bts: << Class of device has been changed!
+
+[122388] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[122409] I/btcomm bts: Clear mask 2
+[122424] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[122454] I/NO_TAG bts: profile 2 connect
+[122472] I/btapp.av bts:  -- av conn rmt device... peer_role:0 local_role:1
+
+[122508] I/btapp.av bts:  -- address: 7CA4:49:2FF552
+
+[122534] I/NO_TAG bts: >> av snk connect
+
+[122551] I/NO_TAG bts: Reconnect ret 0 link_type 0x 1
+[122575] I/btapp_ge bts: << Local device name: SifliDemo-3-8-80-52-fd-5c
+
+[122603] I/btapp_ge bts: service state 1
+[122627] I/sibles KE_EVT2: status=0, start_handle=0xe
+[122656] I/sibles KE_EVT2: status=0, start_handle=0x12
+[122688] I/btapp_ge bts: bt stack ready
+
+con_id = 3
+[122731] I/btapp_ge bts: << Class of device: 0x65020300
+
+[122809] I/NO_TAG bt_app: BT/BLE stack and profile ready
+[122872] I/btapp_ge bts: << Write scan enable success
+
+[122908] I/NO_TAG KE_EVT2: Sibles ADV start 0!
+
+[122937] I/btapp_intf bt_app: set name     铠甲勇士召唤器
+
+[122991] I/NO_TAG bts: DM_ACL_CREATE_CONN_STATUS
+[123031] I/btapp_ge bts: << Local device name changed!
+
+[123083] I/NO_TAG KE_EVT2: HSP companion advertising started: 0
+[123111] I/btapp_ge bts: << Scan mode: 0
+
+[123139] I/btapp_ge bts: <<            No scans enbd.
+
+[123181] I/NO_TAG bts: BTS2MU_GAP_RD_LOCAL_NAME_CFM
+[123201] I/btcomm bts: Clear mask 2
+[123216] I/NO_TAG bts: bt_cm_app_init_ready_hdl ,idx 0 link_type  1
+[123242] I/btapp_ge bts: << Local device name: 铠甲勇士召唤器
+
+[123268] I/btapp_ge bts: service state 2
+[123339] I/btapp_ge bts: << Write eir data success!
+
+[138181] I/NO_TAG bts: link connected COD:0 Incoming:0 hdl 128 res 0
+
+[138224] I/NO_TAG bts: bd addr 7ca4-49-2ff552
+
+[138372] I/btapp_ge bts: device address: 7CA4:49:2FF552
+[138395] I/btapp_ge bts:     role: slave
+
+[138444] I/btapp_ge bts: << Write scan enable success
+
+[138521] I/btapp_ge bts: res = 0,page_num = 1,max_page_num = 2
+
+[138548] I/btapp_ge bts: ext_lmp_featr[0] = 0xb,ext_lmp_featr[1] = 0x0,ext_lmp_featr[2] = 0x0,ext_lmp_featr[3] = 0x0
+
+[138633] I/btapp_ge bts: << Scan mode: 0
+
+[138658] I/btapp_ge bts: <<            No scans enbd.
+
+[139780] I/btapp_ge bts: BTS2MU_GAP_ENCRYPTION_IND
+[139802] I/NO_TAG bts: Encryption competed
+[139819] I/NO_TAG bts: bd addr 0x7c:a4:49:2f:f5:52
+
+[141076] I/btapp.av bts: << (d0)av connect success,cfg = 1
+
+[143350] I/NO_TAG bts: profile 8 connect
+[143370] I/btsapp_hid bts:  -- address: 7CA4:49:2FF552
+
+[143538] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 1/10, result 268435460
+[145368] I/btsapp_hid bts: [L-U]HID connect success
+
+[145400] I/NO_TAG bts: HID connected
+
+[145416] I/btapp_pan bts:  pan st 0
+
+[145435] I/btapp_pan bts: >> PAN connect
+
+[151348] I/btapp_pan bts: << PAN local device addreess: 5CFD:52:800803, result=0
+
+[151425] I/NO_TAG bts: pan connect successed 
+
+[151453] I/btapp_pan bts:  BTS2MU_PAN_CONN_IND
+
+[152415] I/NO_TAG bts: pan disconnect with remote device
+
+ui_mem: bluetooth before free=77788 used=169700 peak=172808
+ui_mem: bluetooth ready free=72244 used=175244 peak=175244
+[174462] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 2/10, result 268435460
+[204044] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 3/10, result 268435460
+[232167] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 4/10, result 268435460
+ui_mem: screen released free=78664 used=168824 peak=176344
+[NTP] PAN disconnected. Stop retrying.
+[236889] I/audio_avrcp main:  -- no avrcp connection with the opposite device
+
+music: request cover 5/10, result 268435460
+[237284] I/audio_avrcp bts: << avrcp indicate to connect with remote device
+
+music: AVRCP connected
+[237578] I/audio_avrcp bts: << register notificaiton volume changed 20
+
+[237578] I/audio_avrcp bts: get play_status = 2
+
+[237836] I/audio bts: private volume[1]=2
+[237860] I/audio_avrcp bts: << set absolute volume 18 
+
+[238070] I/audio_avrcp bts: avrcp media_attribute 2  req_attr 2
+
+[238103] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[238119] I/audio_avrcp bts: avrcp value_length b
+
+[238119] I/audio_avrcp bts: avrcp attr_cfm reject 0
+
+[238404] I/audio_avrcp bts: avrcp media_attribute 3  req_attr 3
+
+[238404] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[238404] I/audio_avrcp bts: avrcp value_length b
+
+[238793] I/audio_avrcp bts: avrcp media_attribute 1  req_attr 1
+
+[238793] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[238793] I/audio_avrcp bts: avrcp value_length c
+
+[239074] I/audio_avrcp bts: avrcp media_attribute 7  req_attr 7
+
+[239074] I/audio_avrcp bts: avrcp character_set_id 6a
+
+[239074] I/audio_avrcp bts: avrcp value_length 1
+
+[239074] I/audio_avrcp bts: URC BT music detail end 0
+
+[239074] I/audio_avrcp bts:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 1/10, result 268435458
+[242688] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 2/10, result 268435458
+[245854] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 3/10, result 268435458
+[247242] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 4/10, result 268435458
+[247957] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 5/10, result 268435458
+[247957] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 6/10, result 268435458
+[247957] I/audio_avrcp main:  -- AVRCP Cover Art connection not exist...
+
+music: request cover 7/10, result 268435458

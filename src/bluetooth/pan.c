@@ -58,7 +58,7 @@ static volatile uint8_t g_bt_stack_ready;
 #ifdef BT_DEVICE_NAME
     static const char *local_name = BT_DEVICE_NAME;
 #else
-    static const char *local_name = "铠甲勇士召唤器";
+    static const char *local_name = "LCHSP Watch";
 #endif
 
 void bt_pan_set_retry_flag(uint8_t enable)

@@ -470,7 +470,10 @@ RGB、木鱼、计算器、日历、喝水提醒、番茄钟、相机、闹钟�
 `peak` 是历史最高占用，不会随着退出下降。
 
 完整的日志判读、MAP/ELF 分析命令、页面释放实现和验证步骤见
-[内存分析、MAP 排查与优化操作](docs/memory-debug/readme.md)。
+[内存分析、MAP 排查与优化操作](docs/memory-debug/内存分析优化.md)。
+
+面向嵌入式校招的简历描述、项目口述、故障案例及技术追问见
+[项目讲解与面试准备报告](docs/interview/readme.md)，重点包括 RTOS、内存、蓝牙和 OTA/Bootloader。
 
 ## 工程结构
 
